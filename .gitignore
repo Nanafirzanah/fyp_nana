@@ -17,3 +17,30 @@ frontend/dist/
 **/.env/*
 !**/.env.example
 .venv/
+
+# Laravel
+laravel/vendor/
+laravel/node_modules/
+laravel/public/build/
+laravel/public/hot
+laravel/public/storage
+laravel/storage/*.key
+laravel/storage/framework/
+laravel/storage/logs/
+laravel/bootstrap/cache/*
+!laravel/bootstrap/cache/.gitignore
+laravel/database/*.sqlite
+laravel/database/*.sqlite-journal
+laravel/.phpunit.result.cache
+laravel/.phpunit.cache/
+laravel/auth.json
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
