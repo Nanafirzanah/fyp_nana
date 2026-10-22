@@ -14,13 +14,10 @@ import io
 import logging
 import dynamodb_client
 import s3_client
-import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from pydantic import BaseModel
 from dependencies import get_current_employee
-from rag import index_document, delete_document_vectors, _extract_text
-from bedrock_client import generate_response
 from botocore.exceptions import ClientError
 from config import MAX_UPLOAD_SIZE_BYTES
 
@@ -131,20 +128,6 @@ async def upload_document(
     except ClientError as e:
         logger.error("Audit log failed for upload %s: %s", file_id, e, exc_info=True)
 
-    try:
-        await asyncio.to_thread(
-            index_document, file_bytes, display_name, file_id, department
-        )
-
-    except Exception as e:
-        logger.error(
-            "RAG indexing failed for %s (%s): %s",
-            file_id,
-            display_name,
-            e,
-            exc_info=True,
-        )
-
     return document
 
 
@@ -227,78 +210,6 @@ def download_document(
         "file_id": file_id,
         "filename": document["display_name"],
         "url": url,
-    }
-
-
-@router.post("/{file_id}/summarize")
-def summarize_document(
-    file_id: str,
-    employee: dict = Depends(get_current_employee),
-):
-    """
-    Summarize a single file's full extracted text via Claude Haiku
-    Bypass Pinecone
-    """
-    department = employee["department"]
-    if not department:
-        raise HTTPException(status_code=403, detail="No dept assigned to this acc.")
-
-    document = dynamodb_client.get_document(department, file_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    try:
-        file_bytes = s3_client.download_file_by_key(document["s3_key"])
-    except ClientError as e:
-        logger.error(
-            "S3 download failed for %s: %s", document["s3_key"], e, exc_info=True
-        )
-        raise HTTPException(status_code=503, detail="Failed to fetch file from storage")
-
-    text = _extract_text(file_bytes, document["display_name"])
-    if not text.strip():
-        raise HTTPException(
-            status_code=422, detail="No readable text found in this file"
-        )
-
-    prompt = (
-        "You are Docuvault AI, an intelligent document assistant for an organisation.\n\n"
-        "Summarize the following document clearly and concisely for a business user who has not read it. "
-        "Your summary must:\n"
-        "1. Open with a 2-3 sentence overview of what the document is and its purpose.\n"
-        "2. Follow with the key points as a clear bullet or numbered list, in the order of importance "
-        "(most important first), not just the order they appear in the document.\n"
-        "3. Preserve specific, concrete details exactly as written - names, dates, figures, deadlines, "
-        "monetary amounts, section/clause numbers. Do not vaguely paraphrase these away.\n"
-        "4. Call out explicitly any action items, deadlines, or approvals required, in their own "
-        "clearly labelled section if the document contains any.\n"
-        "5. Base the summary strictly on the text below - never add information, context, or "
-        "assumptions that are not in the document.\n"
-        "6. Match the summary's length and depth to the document's length - a one-page memo needs a "
-        "short summary, a 40-page policy needs a fuller one covering every major section.\n"
-        "7. Structure your response with headings/bullet points where appropriate.\n\n"
-        f"DOCUMENT: {document['display_name']}\n\n"
-        f"FULL TEXT:\n{text}\n\n"
-        "YOUR SUMMARY:"
-    )
-
-    try:
-        answer = generate_response(prompt)
-    except Exception as e:
-        logger.error(
-            "Bedrock generate_response failed for summarize %s: %s",
-            file_id,
-            e,
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=503, detail="AI service is unavailable, please try again"
-        )
-
-    return {
-        "file_id": file_id,
-        "display_name": document["display_name"],
-        "answer": answer,
     }
 
 
@@ -433,12 +344,6 @@ def delete_document(
     document = dynamodb_client.get_document(department, file_id)
     if document is None:
         raise HTTPException(status_code=404, detail="File not found")
-
-    try:
-        delete_document_vectors(file_id, department)
-    except Exception as e:
-        logger.error("Pinecone delete failed for %s: %s", file_id, e, exc_info=True)
-        raise HTTPException(status_code=503, detail="Failed to delete file vectors")
 
     try:
         s3_client.delete_file_by_key(document["s3_key"])

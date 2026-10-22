@@ -8,7 +8,6 @@ import {
   FolderLock,
   LayoutDashboard,
   Folder,
-  MessageSquare,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -18,7 +17,7 @@ import {
 import type { EmployeeProfile } from "../../types";
 import DeptBadge from "../ui/DeptBadge";
 
-export type AppView = "overview" | "documents" | "ai" | "profile" | "admin";
+export type AppView = "overview" | "documents" | "profile" | "admin";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -173,13 +172,6 @@ export default function Sidebar({
             active={currentView === "documents"}
             collapsed={showCollapsed}
             onClick={() => handleViewChange("documents")}
-          />
-          <NavItem
-            icon={<MessageSquare size={16} />}
-            label="AI Assistant"
-            active={currentView === "ai"}
-            collapsed={showCollapsed}
-            onClick={() => handleViewChange("ai")}
           />
           <NavItem
             icon={<User size={16} />}

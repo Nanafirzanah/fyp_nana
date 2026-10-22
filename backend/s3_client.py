@@ -60,7 +60,7 @@ def generate_download_url(s3_key: str, filename: str, expires_in: int = 300) -> 
 def download_file_by_key(s3_key: str) -> bytes:
     """
     Download a file's raw bytes from S3 by its key.
-    Used server-side by Summarize/file-grounded chat, which need the full extracted text.
+    Used server-side when the full file content is needed (e.g. malware scanning).
     """
     response = _s3.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
     return response["Body"].read()

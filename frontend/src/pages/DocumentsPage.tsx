@@ -7,7 +7,6 @@ import {
   FolderPlus,
   ChevronRight,
   AlertCircle,
-  Send,
   Search,
   X,
 } from "lucide-react";
@@ -36,8 +35,6 @@ import MoveModal from "../components/documents/MoveModal";
 interface DocumentsPageProps {
   profile: EmployeeProfile;
   idToken: string;
-  onAskAI?: (prompt: string) => void;
-  onSummarize: (document: Document) => void;
 }
 
 interface BreadcrumbEntry {
@@ -52,8 +49,6 @@ type ActionTarget =
 export default function DocumentsPage({
   profile,
   idToken,
-  onAskAI,
-  onSummarize,
 }: DocumentsPageProps) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [files, setFiles] = useState<Document[]>([]);
@@ -64,7 +59,6 @@ export default function DocumentsPage({
   const [renameTarget, setRenameTarget] = useState<ActionTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ActionTarget | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
@@ -469,34 +463,6 @@ export default function DocumentsPage({
             <span className="hidden sm:inline">New Folder</span>
           </button>
         </div>
-        {onAskAI && (
-          <div className="flex gap-2 mb-4">
-            <input
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && aiPrompt.trim()) {
-                  onAskAI(aiPrompt.trim());
-                  setAiPrompt("");
-                }
-              }}
-              placeholder="Ask AI about your documents..."
-              className="flex-1 text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <button
-              onClick={() => {
-                if (aiPrompt.trim()) {
-                  onAskAI(aiPrompt.trim());
-                  setAiPrompt("");
-                }
-              }}
-              disabled={!aiPrompt.trim()}
-              className="px-3 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors"
-            >
-              <Send size={15} />
-            </button>
-          </div>
-        )}
         {/* Error Banner */}
         {error && (
           <div className="flex items-center gap-2.5 px-4 py-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
@@ -616,7 +582,6 @@ export default function DocumentsPage({
                 selectedFolderIds={selectedFolderIds}
                 onToggleFileSelect={handleToggleFileSelect}
                 onToggleFolderSelect={handleToggleFolderSelect}
-                onFileSummarize={onSummarize}
               />
             )}
           </div>

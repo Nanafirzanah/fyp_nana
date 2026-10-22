@@ -1,6 +1,6 @@
 # DocuVault AI
 
-A department-scoped cloud document management system built as a Final Year Project. Employees can upload, organise, search, and query documents within their own department. An AI assistant powered by a **Retrieval-Augmented Generation (RAG)** pipeline answers questions grounded strictly in that department's documents.
+A department-scoped cloud document management system built as a Final Year Project. Employees can upload, organise, search, and query documents within their own department.
 
 ---
 
@@ -10,14 +10,12 @@ A department-scoped cloud document management system built as a Final Year Proje
 - **Folder & file management** — create folders, upload, rename, move (with cycle detection), download, and delete
 - **Search** — search across documents and folders within your department
 - **Overview dashboard** — department-level stats: document/folder counts, storage used, file-type breakdown, busiest folders, recently uploaded and largest files
-- **AI Assistant** — ask natural-language questions grounded in your department's documents, with source citations; supports multi-turn conversation (follow-up questions are automatically rewritten into standalone queries) and per-document summarization
-- **Chat export & clear** — export a conversation to PDF (rendered server-side) or clear the current chat
 - **Admin panel** — system admins can register employees, reassign departments, and lock/unlock accounts
 - **Audit log** — admins can view a filterable log of key actions (by department and action type)
 - **First-login onboarding** — employees set their password and verify identity via NRIC on first login
 - **Forgot password** — self-service password reset via Resend transactional email
 - **Profile management** — employees can update their address and phone number
-- **Supported file types** — PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG, JPG/JPEG (images processed via OCR)
+- **Supported file types** — PDF, DOCX, XLSX, PPTX, CSV, TXT, PNG, JPG/JPEG
 
 ---
 
@@ -30,12 +28,7 @@ A department-scoped cloud document management system built as a Final Year Proje
 | Authentication | AWS Cognito (User Pool + App Client), custom JWT verification (JWKS-based) |
 | Storage | AWS S3 |
 | Database | AWS DynamoDB (Employees, Folders, Documents, AuditLog tables) |
-| Vector Database | Pinecone Serverless (1024-dim index, top-k 10 chunks retrieved per query) |
-| Embeddings | AWS Bedrock — Amazon Titan Embeddings V2 |
-| AI Generation | AWS Bedrock — Claude Haiku 4.5 |
-| OCR (image text extraction) | AWS Textract |
 | Charts | Recharts |
-| Markdown rendering | react-markdown + remark-gfm |
 | Email | Resend |
 | Deployment | AWS Elastic Beanstalk (backend) + Cloudflare (frontend + TLS proxy), via GitHub Actions CI/CD |
 
@@ -46,8 +39,6 @@ A department-scoped cloud document management system built as a Final Year Proje
 <img width="1919" height="909" alt="image" src="https://github.com/user-attachments/assets/d89373e7-7eed-4c95-b9d2-c255aa1a70a1" />
 <p>Dashboard Page</p>
 <img width="2559" height="595" alt="Dashboard FYP SS" src="https://github.com/user-attachments/assets/f678d216-ae0b-4f6b-b2aa-6d891c235b95" />
-<p>AI Assisstant Page</p>
-<img width="2559" height="838" alt="AI Assistant FYP SS" src="https://github.com/user-attachments/assets/b9f434d3-2909-4b11-8d99-4c0dbb42e48e" />
 <p>My Profile Page</p>
 <img width="1919" height="912" alt="image" src="https://github.com/user-attachments/assets/3c355998-3113-4aeb-b9e8-63d383fc63b7" />
 <p>Admin Dashboard Employees Page</p>
@@ -67,9 +58,8 @@ Browser (React + Vite)
 FastAPI (AWS Elastic Beanstalk)
     ├── auth.py          — verifies Cognito JWT locally (JWKS cached 1 hr)
     ├── dependencies.py  — resolves employee profile from DynamoDB
-    ├── documents.py     — S3 upload/download/rename/move/delete + RAG indexing + summarize
+    ├── documents.py     — S3 upload/download/rename/move/delete
     ├── folders.py       — folder CRUD in DynamoDB
-    ├── chat.py          — RAG query endpoint + chat PDF export
     ├── overview.py       — department dashboard stats
     ├── admin.py          — employee management (Cognito + DynamoDB + Resend) + audit log
     ├── onboarding.py    — first-login NRIC verification
@@ -79,10 +69,7 @@ FastAPI (AWS Elastic Beanstalk)
          │
          ├── AWS S3          (file storage)
          ├── AWS DynamoDB    (metadata: employees, folders, documents, audit log)
-         ├── AWS Cognito     (identity)
-         ├── AWS Textract    (OCR for image uploads)
-         ├── Pinecone        (vector search)
-         └── AWS Bedrock     (embeddings + generation)
+         └── AWS Cognito     (identity)
 ```
 
 ---
@@ -109,64 +96,8 @@ Every authenticated request resolves to a `department` from DynamoDB. This value
 
 - **DynamoDB** — folders, documents, and audit log entries are stored with `department` as the partition key
 - **S3** — object keys include the department prefix
-- **Pinecone** — all vectors are upserted with `department` in metadata; queries always filter `{ "department": { "$eq": department } }`
 
-An employee in `hr` will never see, retrieve, or ask questions about documents belonging to `finance` or any other department — enforced at the API layer, not the frontend.
-
----
-
-## RAG Pipeline (Retrieval-Augmented Generation)
-
-RAG is the technique of retrieving relevant document excerpts at query time and including them as context for the AI model, so answers are grounded in real data rather than model training.
-
-### Indexing (on document upload)
-
-```
-File upload
-    │
-    ├─ Text extraction (by file type)
-    │      PDF        → pdfplumber
-    │      DOCX       → python-docx
-    │      XLSX       → openpyxl
-    │      PPTX       → python-pptx
-    │      CSV        → stdlib csv
-    │      PNG/JPG    → AWS Textract (OCR — no local OCR binary required)
-    │
-    ├─ Chunking
-    │      500 words per chunk, 50-word overlap (sliding window)
-    │
-    ├─ Embedding
-    │      Each chunk → Amazon Titan Embeddings V2 (1024-dim vector) via AWS Bedrock
-    │
-    └─ Upsert to Pinecone
-           Vector ID: {file_id}_{chunk_index}
-           Metadata:  { department, file_id, display_name, chunk_index, text }
-```
-
-### Querying (on AI Assistant message)
-
-```
-Employee question
-    │
-    ├─ (If a conversation is already in progress) rewrite the question into a
-    │      standalone form using recent history, via Claude Haiku 4.5
-    │
-    ├─ Embed the (possibly rewritten) question → Titan Embeddings V2
-    │
-    ├─ Pinecone similarity search
-    │      top_k = 10 chunks, filtered by department
-    │
-    ├─ Build grounding prompt
-    │      Instructions + retrieved document excerpts + question + conversation history
-    │
-    ├─ Generate answer → Claude Haiku 4.5 via AWS Bedrock
-    │
-    └─ Return answer with source citations to frontend
-```
-
-A separate "Summarize" flow, triggered from a specific document, skips vector search entirely and uses that one file's full extracted text as context instead.
-
-On document deletion, all Pinecone vectors for that file are removed via a metadata filter (`file_id` + `department`). A `NotFoundError` (e.g. files uploaded before RAG was enabled) is caught and logged as a warning rather than failing the delete.
+An employee in `hr` will never see, retrieve, documents belonging to `finance` or any other department — enforced at the API layer, not the frontend.
 
 ---
 
@@ -179,12 +110,9 @@ fyp/
 │   ├── config.py             # Env var loader (python-dotenv locally, EB env properties in prod)
 │   ├── auth.py               # Cognito JWT verifier (JWKS-based, no per-request AWS call)
 │   ├── dependencies.py       # FastAPI deps: token → employee profile
-│   ├── documents.py          # Document routes (upload, list, download, rename, move, summarize, delete)
+│   ├── documents.py          # Document routes (upload, list, download, rename, move, delete)
 │   ├── folders.py            # Folder routes (create, list, rename, delete)
-│   ├── chat.py                # POST /chat — RAG query endpoint + chat PDF export
 │   ├── overview.py            # GET /overview — department dashboard stats
-│   ├── rag.py                 # Text extraction, chunking, Pinecone upsert/query/delete
-│   ├── bedrock_client.py      # get_embedding() + generate_response() via Bedrock
 │   ├── dynamodb_client.py     # DynamoDB operations (employees, folders, documents, audit log)
 │   ├── s3_client.py           # S3 operations
 │   ├── admin.py                # Admin routes (register, list, update dept, lock/unlock, audit log)
@@ -208,7 +136,6 @@ fyp/
 │   │   │   ├── Dashboard.tsx              # Post-login shell, view switcher
 │   │   │   ├── OverviewPage.tsx           # Department stats dashboard
 │   │   │   ├── DocumentsPage.tsx          # File/folder browser
-│   │   │   ├── AIAssistantPage.tsx        # RAG chat UI
 │   │   │   ├── AdminDashboard.tsx         # Admin-only panel (employees + audit log)
 │   │   │   ├── ProfilePage.tsx
 │   │   │   ├── ForgotPasswordPage.tsx
@@ -219,7 +146,7 @@ fyp/
 │   │   │   ├── overview/                 # FileTypeChart (Recharts donut) and related widgets
 │   │   │   ├── admin/                    # Employee table, audit log view
 │   │   │   └── ui/                       # ContextMenu, ConfirmModal, DeptBadge, etc.
-│   │   └── api/                          # Typed API call functions (documentsApi, chatApi, adminApi, overviewApi, foldersApi, profileApi)
+│   │   └── api/                          # Typed API call functions (documentsApi, adminApi, overviewApi, foldersApi, profileApi)
 │   └── package.json
 │
 └── .github/
@@ -237,11 +164,7 @@ fyp/
   - Cognito User Pool + App Client (SPA-type, no client secret)
   - DynamoDB tables: `Employees`, `Folders`, `Documents`, `AuditLog`
   - S3 bucket
-  - Bedrock model access enabled for:
-    - `amazon.titan-embed-text-v2:0`
-    - Claude Haiku 4.5 (the exact model/inference-profile ID is hardcoded in `backend/config.py` — currently `au.anthropic.claude-haiku-4-5-20251001-v1:0`; update this in code if your account uses a different regional inference profile)
-  - IAM user with programmatic access to Cognito, DynamoDB, S3, Bedrock (`InvokeModel`), and **Textract** (`DetectDocumentText`) — required for OCR on image uploads
-- **Pinecone** account — create a serverless index with **1024 dimensions**, cosine metric
+  - IAM user with programmatic access to Cognito, DynamoDB and S3
 - **Resend** account — for transactional email (welcome + password reset)
 
 ### Local Tools Required
@@ -250,8 +173,6 @@ fyp/
 |---|---|
 | Python | 3.12+ |
 | Node.js | 20+ |
-
-No local OCR installation is needed — image text extraction is handled by the AWS Textract API, not a local binary.
 
 ---
 
@@ -297,10 +218,6 @@ DYNAMODB_AUDIT_LOG_TABLE=AuditLog
 # S3
 S3_BUCKET_NAME=your-s3-bucket-name
 
-# Pinecone
-PINECONE_API_KEY=your-pinecone-api-key
-PINECONE_INDEX_NAME=fyp-index
-
 # Resend (transactional email)
 RESEND_API_KEY=re_xxxxxxxxxxxx
 RESEND_FROM_EMAIL=noreply@yourdomain.com
@@ -309,7 +226,7 @@ RESEND_FROM_EMAIL=noreply@yourdomain.com
 ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-All six of `COGNITO_USER_POOL_ID`, `COGNITO_APP_CLIENT_ID`, `S3_BUCKET_NAME`, `PINECONE_API_KEY`, `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` are required — the app will refuse to start (`RuntimeError`) if any of these are missing.
+All five of `COGNITO_USER_POOL_ID`, `COGNITO_APP_CLIENT_ID`, `S3_BUCKET_NAME`, `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` are required — the app will refuse to start (`RuntimeError`) if any of these are missing.
 
 AWS credentials are read from the standard AWS credential chain. The easiest way locally:
 
@@ -434,13 +351,10 @@ Required GitHub Actions secrets:
 | POST | `/auth/forgot-password/send-reset` | None | Step 2 — verifies NRIC + personal email, sends reset link |
 | POST | `/auth/reset-password` | None | Complete password reset |
 | POST | `/auth/log-login` | Employee | Record a login event |
-| POST | `/chat` | Employee | RAG question (or file-grounded summarize) → AI answer |
-| POST | `/chat/export` | Employee | Export current conversation as a PDF |
 | GET | `/overview` | Employee | Department dashboard stats |
 | GET | `/documents/list` | Employee | List documents in department |
 | POST | `/documents/upload` | Employee | Upload + index a document |
 | GET | `/documents/download/{file_id}` | Employee | Get a short-lived download URL |
-| POST | `/documents/{file_id}/summarize` | Employee | Summarize a specific document |
 | PATCH | `/documents/{file_id}/rename` | Employee | Rename a document |
 | POST | `/documents/move` | Employee | Move a batch of files/folders to a new destination |
 | DELETE | `/documents/{file_id}` | Employee | Delete document + its vectors |

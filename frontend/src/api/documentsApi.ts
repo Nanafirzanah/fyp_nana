@@ -9,7 +9,6 @@ import type {
   DownloadResponse,
   MoveResponse,
   UploadResponse,
-  SummarizeResponse,
 } from "../types";
 import { getApiBaseUrl, authHeaders, handleResponse } from "./utils";
 
@@ -121,19 +120,4 @@ export async function moveItems(
     }),
   });
   return handleResponse<MoveResponse>(response);
-}
-
-// FOR SUMMARIZE
-export async function summarizeDocument(
-  idToken: string,
-  fileId: string,
-): Promise<SummarizeResponse> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/documents/${fileId}/summarize`,
-    {
-      method: "POST",
-      headers: authHeaders(idToken),
-    },
-  );
-  return handleResponse<SummarizeResponse>(response);
 }

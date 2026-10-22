@@ -20,7 +20,6 @@ interface ContentListProps {
   onToggleFolderSelect?: (folderId: string) => void;
   onFileMove: (document: Document) => void;
   onFolderMove: (folder: Folder) => void;
-  onFileSummarize: (document: Document) => void;
 }
 
 export default function ContentList({
@@ -40,7 +39,6 @@ export default function ContentList({
   onToggleFolderSelect,
   onFileMove,
   onFolderMove,
-  onFileSummarize,
 }: ContentListProps) {
   const isEmpty = folders.length === 0 && files.length === 0;
 
@@ -97,7 +95,6 @@ export default function ContentList({
           onDelete={onFileDelete}
           onOpen={onFileOpen}
           onMove={onFileMove}
-          onSummarize={onFileSummarize}
           selected={selectedFileIds?.has(file.file_id)}
           onToggleSelect={onToggleFileSelect}
         />

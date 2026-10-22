@@ -8,7 +8,6 @@ import {
   Trash2,
   Download,
   Move,
-  Sparkles,
 } from "lucide-react";
 import type { Document } from "../../types";
 import ContextMenu, {
@@ -23,7 +22,6 @@ interface FileRowProps {
   onRename: (document: Document) => void;
   onDelete: (document: Document) => void;
   onMove: (document: Document) => void;
-  onSummarize: (document: Document) => void;
   onOpen?: (document: Document) => void;
   selected?: boolean;
   onToggleSelect?: (fileId: string) => void;
@@ -124,7 +122,6 @@ export default function FileRow({
   onRename,
   onDelete,
   onMove,
-  onSummarize,
   onOpen,
   selected = false,
   onToggleSelect,
@@ -133,11 +130,6 @@ export default function FileRow({
   const menuRef = useRef<ContextMenuHandle>(null);
 
   const menuItems: ContextMenuItem[] = [
-    {
-      label: "Summarize",
-      icon: <Sparkles size={14} />,
-      onClick: () => onSummarize(document),
-    },
     {
       label: "Download",
       icon: <Download size={14} />,
