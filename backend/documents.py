@@ -339,7 +339,9 @@ def rename_document(
     name = f"{base_name}{extension}"
 
     try:
-        dynamodb_client.rename_document(department, file_id, name)
+        dynamodb_client.rename_document(
+            department, file_id, name, modified_by=employee["email"]
+        )
     except ClientError as e:
         logger.error(
             "DynamoDB rename_document failed for %s: %s", file_id, e, exc_info=True
