@@ -8,6 +8,7 @@ import {
   Trash2,
   Download,
   Move,
+  Lock,
 } from "lucide-react";
 import type { Document } from "../../types";
 import ContextMenu, {
@@ -181,8 +182,15 @@ export default function FileRow({
       </div>
       {/* File Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-800 truncate">
-          {document.display_name}
+        <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800 truncate">
+          <span className="truncate">{document.display_name}</span>
+          {document.is_locked && (
+            <Lock
+              size={13}
+              className="flex-shrink-0 text-amber-600"
+              aria-label="Locked with a password"
+            />
+          )}
         </p>
         <p className="text-xs text-slate-400 mt-0.5">
           {formatBytes(document.file_size)} &middot;{" "}

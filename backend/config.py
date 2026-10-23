@@ -37,6 +37,11 @@ MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
 MAX_LOCKED_FILE_BYTES = 25 * 1024 * 1024
 GCM_TAG_BYTES = 16
 
+# Accepted PBKDF2 iteration range for a lock (the browser uses 600k).
+# The server rejects weaker settings so a modified client cannot downgrade a lock.
+MIN_KDF_ITERATIONS = 600_000
+MAX_KDF_ITERATIONS = 5_000_000
+
 # Wrong-verifier attempts allowed before a file is temporarily locked out.
 UNLOCK_MAX_FAILED_ATTEMPTS = 5
 UNLOCK_LOCKOUT_SECONDS = 5 * 60

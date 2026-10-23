@@ -14,6 +14,7 @@ import type { Document, Folder, EmployeeProfile, MoveTarget } from "../types";
 import {
   listDocuments,
   uploadDocument,
+  uploadLockedDocument,
   renameDocument,
   deleteDocument,
   getDownloadUrl,
@@ -27,6 +28,8 @@ import {
 import ContentList from "../components/documents/ContentList";
 import UploadZone from "../components/documents/UploadZone";
 import RenameModal from "../components/documents/RenameModal";
+import UploadOptionsModal from "../components/documents/UploadOptionsModal";
+import { encryptBytes } from "../crypto/lockCrypto";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { toast } from "sonner";
 import SkeletonRow from "../components/documents/SkeletonRow";
@@ -54,6 +57,7 @@ export default function DocumentsPage({
   const [files, setFiles] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState<File[] | null>(null);
   const [folderStack, setFolderStack] = useState<BreadcrumbEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<ActionTarget | null>(null);
@@ -283,19 +287,44 @@ export default function DocumentsPage({
 
   // UPLOAD
 
-  async function handleUpload(selectedFiles: File[]) {
+  // Picking files only opens the options dialog; the upload starts from there.
+  function handleUpload(selectedFiles: File[]) {
+    setPendingUpload(selectedFiles);
+  }
+
+  // password === null: normal upload. Otherwise the file is encrypted in the
+  // browser first and only ciphertext + verifier are sent.
+  async function startUpload(selectedFiles: File[], password: string | null) {
+    setPendingUpload(null);
     setUploading(true);
     const id = toast.loading(
-      selectedFiles.length > 1
-        ? `Uploading ${selectedFiles.length} files...`
-        : "Uploading file...",
+      password
+        ? selectedFiles.length > 1
+          ? `Encrypting and uploading ${selectedFiles.length} files...`
+          : "Encrypting and uploading file..."
+        : selectedFiles.length > 1
+          ? `Uploading ${selectedFiles.length} files...`
+          : "Uploading file...",
     );
     const failed: { name: string; reason: string }[] = [];
     let succeededCount = 0;
 
     for (const file of selectedFiles) {
       try {
-        await uploadDocument(idToken, file, currentFolderId ?? undefined);
+        if (password) {
+          const encrypted = await encryptBytes(
+            new Uint8Array(await file.arrayBuffer()),
+            password,
+          );
+          await uploadLockedDocument(
+            idToken,
+            file,
+            encrypted,
+            currentFolderId ?? undefined,
+          );
+        } else {
+          await uploadDocument(idToken, file, currentFolderId ?? undefined);
+        }
         succeededCount++;
       } catch (err) {
         console.error(err);
@@ -303,7 +332,9 @@ export default function DocumentsPage({
         failed.push({
           name: file.name,
           reason: message.startsWith("413")
-            ? "exceeds the 50MB upload limit"
+            ? password
+              ? "exceeds the 25MB limit for locked files"
+              : "exceeds the 50MB upload limit"
             : "upload failed",
         });
       }
@@ -403,6 +434,12 @@ export default function DocumentsPage({
   // DOWNLOAD
 
   async function handleDownload(doc: Document) {
+    if (doc.is_locked) {
+      toast.info(
+        "This file is locked. Unlocking with a password is added in the next step.",
+      );
+      return;
+    }
     try {
       const { url } = await getDownloadUrl(idToken, doc.file_id);
       window.open(url, "_blank", "noopener,noreferrer");
@@ -587,6 +624,15 @@ export default function DocumentsPage({
           </div>
         </div>
       </div>
+
+      {/* Upload options (normal or password-locked) */}
+      {pendingUpload && (
+        <UploadOptionsModal
+          files={pendingUpload}
+          onConfirm={(password) => startUpload(pendingUpload, password)}
+          onClose={() => setPendingUpload(null)}
+        />
+      )}
 
       {/* Create Folder Modal */}
       {createFolderOpen && (

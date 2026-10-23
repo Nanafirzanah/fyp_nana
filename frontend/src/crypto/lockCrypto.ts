@@ -19,6 +19,8 @@ export const KDF_ITERATIONS = 600_000;
 export const SALT_BYTES = 16;
 export const IV_BYTES = 12;
 export const GCM_TAG_BYTES = 16;
+/** Locked files are encrypted whole in memory. Keep in sync with backend config.py. */
+export const MAX_LOCKED_FILE_BYTES = 25 * 1024 * 1024;
 
 /** Parameters stored next to the document. None of these are secret. */
 export interface LockParams {

@@ -22,8 +22,9 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # tsc -b && vite build (this is the type check)
 npm run lint
+npm test         # vitest (crypto round-trip tests)
 ```
-There is **no test suite and no backend linter yet**. Config is read from `backend/.env` and `frontend/.env` (copy the `.env.example` files). `backend/config.py` raises `RuntimeError` at import time if required variables are missing, so the app will not start without them. Real AWS access (Cognito, DynamoDB, S3) is needed even for local runs; credentials come from the standard AWS credential chain.
+Backend tests: `pip install -r requirements-dev.txt` then `pytest` from `backend/` (fakes replace S3/DynamoDB, no AWS needed). There is **no backend linter yet**. Config is read from `backend/.env` and `frontend/.env` (copy the `.env.example` files). `backend/config.py` raises `RuntimeError` at import time if required variables are missing, so the app will not start without them. Real AWS access (Cognito, DynamoDB, S3) is needed even for local runs; credentials come from the standard AWS credential chain.
 
 ## Deployment (be careful)
 
@@ -68,7 +69,7 @@ Status: steps 0 and 1 are done (branches `fix/rename-modified-by` and `remove-ra
 3. **(Done in code; the two tables must also be created in each AWS environment) Data model:** DynamoDB tables `FilePasswords` (PK `department`, SK `file_id`; holds `verifier_hash`, `iv`, `failed_attempts`, `locked_until`) and `ScanLogs` (PK `department`, SK `scan_id`), config names `DYNAMODB_FILE_PASSWORDS_TABLE` / `DYNAMODB_SCAN_LOGS_TABLE`, accessors in `dynamodb_client.py`. Documents gain `is_locked` (missing = false) and `lock_kdf` ({version, kdf, iterations, salt}, public). `content_type` always stays the real type, so no separate `original_content_type` is needed. Deleting a locked document (or a folder containing one) also deletes its `FilePasswords` item. Rate-limit and locked-file size constants live in `config.py` (`UNLOCK_MAX_FAILED_ATTEMPTS`, `UNLOCK_LOCKOUT_SECONDS`, `MAX_LOCKED_FILE_BYTES`). Still to add with the ClamAV work: clamd host/port settings.
 4. **(Done) Frontend crypto module** (e.g. `frontend/src/crypto/`): derive key + verifier, encrypt, decrypt, with a clear error on a wrong password (GCM auth failure).
 5. **Backend scanning:** `POST /documents/scan`, scan-on-upload for unlocked files, scan-on-download for unlocked files (warning flow), `ScanLogs` writes.
-6. **Upload flow:** lock dialog in the upload UI (password, forgot-password warning, hint that a file may have its own password); scan, then encrypt, then upload for locked files; keep S3 first, DynamoDB second, with rollback.
+6. **(Done except the ClamAV scan step) Upload flow:** `POST /documents/upload-locked` (ciphertext + verifier + public KDF params; server rejects KDF < 600k iterations, enforces the 25 MB cap, writes S3 then FilePasswords then Documents with rollback) and the `UploadOptionsModal` in the browser; plain `/documents/download` now returns 403 for locked files. Original spec: lock dialog in the upload UI (password, forgot-password warning, hint that a file may have its own password); scan, then encrypt, then upload for locked files; keep S3 first, DynamoDB second, with rollback.
 7. **Unlock/download flow:** `POST /documents/{file_id}/unlock` with the verifier, rate limiting, audit entries; browser decrypts and saves under the original name.
 8. **Access rules:** owner/admin-only rename, delete and move for locked files; lock icon in the file list; locked files hide any preview/open actions.
 8b. **Lock an existing file** (owner only, see design decisions): `POST /documents/{file_id}/lock`, "Lock file" item in the file context menu reusing the lock dialog and crypto module. Stretch goal for Demo 1 (decide at the end of week 4 whether the core upload + unlock slice is stable enough), otherwise do it before Demo 2.

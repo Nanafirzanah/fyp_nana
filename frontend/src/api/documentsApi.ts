@@ -11,6 +11,7 @@ import type {
   UploadResponse,
 } from "../types";
 import { getApiBaseUrl, authHeaders, handleResponse } from "./utils";
+import type { EncryptedFile } from "../crypto/lockCrypto";
 
 // UPLOAD
 
@@ -23,6 +24,43 @@ export async function uploadDocument(
   formData.append("file", file);
 
   const url = new URL(`${getApiBaseUrl()}/documents/upload`);
+  if (folderId) url.searchParams.set("folder_id", folderId);
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: authHeaders(idToken),
+    body: formData,
+  });
+  return handleResponse<UploadResponse>(response);
+}
+
+/**
+ * Upload a file the browser has already encrypted. The body is ciphertext; only
+ * the verifier and the public key-derivation parameters accompany it. The
+ * password and the AES key are never sent.
+ */
+export async function uploadLockedDocument(
+  idToken: string,
+  file: File,
+  encrypted: EncryptedFile,
+  folderId?: string,
+): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append(
+    "file",
+    new Blob([encrypted.ciphertext], { type: "application/octet-stream" }),
+    file.name,
+  );
+  formData.append("verifier", encrypted.verifier);
+  formData.append("kdf_salt", encrypted.params.salt);
+  formData.append("kdf_iterations", String(encrypted.params.iterations));
+  formData.append("iv", encrypted.params.iv);
+  formData.append(
+    "original_content_type",
+    file.type || "application/octet-stream",
+  );
+
+  const url = new URL(`${getApiBaseUrl()}/documents/upload-locked`);
   if (folderId) url.searchParams.set("folder_id", folderId);
 
   const response = await fetch(url.toString(), {
