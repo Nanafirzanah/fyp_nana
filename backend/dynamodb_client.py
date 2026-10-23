@@ -16,6 +16,8 @@ _employees_table = _dynamodb.Table(config.DYNAMODB_EMPLOYEES_TABLE)
 _folders_table = _dynamodb.Table(config.DYNAMODB_FOLDERS_TABLE)
 _documents_table = _dynamodb.Table(config.DYNAMODB_DOCUMENTS_TABLE)
 _audit_log_table = _dynamodb.Table(config.DYNAMODB_AUDIT_LOG_TABLE)
+_file_passwords_table = _dynamodb.Table(config.DYNAMODB_FILE_PASSWORDS_TABLE)
+_scan_logs_table = _dynamodb.Table(config.DYNAMODB_SCAN_LOGS_TABLE)
 
 # EMPLOYEES
 
@@ -138,11 +140,17 @@ def create_document(
     file_size: int,
     content_type: str,
     folder_id: str | None = None,
+    lock_kdf: dict | None = None,
 ) -> dict:
     """
     Create a document metadata record after successful S3 Upload.
     s3_key is a stable UUID-based path - display name is what user sees.
     folder_id None for root-level files.
+
+    lock_kdf is given for a locked file: the PUBLIC key-derivation parameters
+    ({version, kdf, iterations, salt}) the browser needs to compute the verifier.
+    content_type always stays the file's real type; for locked files the S3
+    object itself is stored as application/octet-stream.
     """
     item = {
         "department": department,
@@ -152,8 +160,11 @@ def create_document(
         "uploaded_by": uploaded_by,
         "file_size": file_size,
         "content_type": content_type,
+        "is_locked": lock_kdf is not None,
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
+    if lock_kdf is not None:
+        item["lock_kdf"] = lock_kdf
     item["last_modified_by"] = uploaded_by
     item["last_modified_at"] = item["uploaded_at"]
     if folder_id:
@@ -434,5 +445,151 @@ def get_audit_logs(
 
     if action:
         items = [item for item in items if item.get("action") == action]
+
+    return items[:limit]
+
+
+# FILE PASSWORDS (gate for locked files)
+#
+# One item per locked file, keyed like Documents (department + file_id) so the
+# department-scoping rule still holds. Holds only gate material - never the
+# file password or the AES key, which stay in the browser:
+#   verifier_hash  bcrypt(verifier)
+#   iv             AES-GCM IV, released only after the verifier matches
+#   failed_attempts / locked_until   unlock rate limiting
+
+
+def create_file_password(
+    department: str, file_id: str, verifier_hash: str, iv: str, created_by: str
+) -> dict:
+    item = {
+        "department": department,
+        "file_id": file_id,
+        "verifier_hash": verifier_hash,
+        "iv": iv,
+        "failed_attempts": 0,
+        "created_by": created_by,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _file_passwords_table.put_item(Item=item)
+    return item
+
+
+def get_file_password(department: str, file_id: str) -> dict | None:
+    response = _file_passwords_table.get_item(
+        Key={"department": department, "file_id": file_id}
+    )
+    return response.get("Item")
+
+
+def delete_file_password(department: str, file_id: str) -> None:
+    """
+    Safe to call for an unlocked file: deleting a missing item is a no-op.
+    """
+    _file_passwords_table.delete_item(Key={"department": department, "file_id": file_id})
+
+
+def register_failed_unlock(
+    department: str, file_id: str, max_attempts: int, lockout_seconds: int
+) -> dict:
+    """
+    Count one wrong verifier atomically. When the counter reaches max_attempts,
+    start a lockout (epoch seconds) and reset the counter.
+    Returns {"failed_attempts": int, "locked_until": int | None}.
+    """
+    key = {"department": department, "file_id": file_id}
+    response = _file_passwords_table.update_item(
+        Key=key,
+        UpdateExpression="ADD failed_attempts :one",
+        ExpressionAttributeValues={":one": 1},
+        ReturnValues="UPDATED_NEW",
+    )
+    attempts = int(response["Attributes"]["failed_attempts"])
+    if attempts < max_attempts:
+        return {"failed_attempts": attempts, "locked_until": None}
+
+    locked_until = int(datetime.now(timezone.utc).timestamp()) + lockout_seconds
+    _file_passwords_table.update_item(
+        Key=key,
+        UpdateExpression="SET failed_attempts = :zero, locked_until = :lu",
+        ExpressionAttributeValues={":zero": 0, ":lu": locked_until},
+    )
+    return {"failed_attempts": 0, "locked_until": locked_until}
+
+
+def clear_failed_unlocks(department: str, file_id: str) -> None:
+    _file_passwords_table.update_item(
+        Key={"department": department, "file_id": file_id},
+        UpdateExpression="SET failed_attempts = :zero REMOVE locked_until",
+        ExpressionAttributeValues={":zero": 0},
+    )
+
+
+def unlock_locked_until(file_password: dict) -> int | None:
+    """
+    Epoch seconds the file stays locked out until, or None if not locked out now.
+    """
+    locked_until = file_password.get("locked_until")
+    if locked_until is None:
+        return None
+    locked_until = int(locked_until)
+    if locked_until > int(datetime.now(timezone.utc).timestamp()):
+        return locked_until
+    return None
+
+
+# SCAN LOGS
+#
+# One item per ClamAV scan. scan_type is "upload", "download" or "lock";
+# result is "clean", "infected", "not_fully_scanned" or "error".
+
+
+def create_scan_log(
+    department: str,
+    file_id: str,
+    file_name: str,
+    user_email: str,
+    scan_type: str,
+    result: str,
+    details: str | None = None,
+) -> dict:
+    timestamp = datetime.now(timezone.utc).isoformat()
+    item = {
+        "department": department,
+        "scan_id": f"{timestamp}#{uuid.uuid4()}",
+        "file_id": file_id,
+        "file_name": file_name,
+        "user_email": user_email,
+        "scan_type": scan_type,
+        "result": result,
+        "timestamp": timestamp,
+    }
+    if details:
+        item["details"] = details
+    _scan_logs_table.put_item(Item=item)
+    return item
+
+
+def get_scan_logs(
+    department: str | None = None, result: str | None = None, limit: int = 200
+) -> list[dict]:
+    """
+    Return scan log entries, newest first. department None = all departments
+    (admin view); result optionally filters (e.g. "infected").
+    """
+    if department:
+        response = _scan_logs_table.query(
+            KeyConditionExpression="department = :dept",
+            ExpressionAttributeValues={":dept": department},
+            ScanIndexForward=False,
+        )
+        items = response.get("Items", [])
+    else:
+        response = _scan_logs_table.scan()
+        items = response.get("Items", [])
+        items.sort(key=lambda x: x["scan_id"], reverse=True)
+
+    if result:
+        items = [item for item in items if item.get("result") == result]
 
     return items[:limit]

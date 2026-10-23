@@ -20,6 +20,10 @@ DYNAMODB_EMPLOYEES_TABLE = os.getenv("DYNAMODB_EMPLOYEES_TABLE", "Employees")
 DYNAMODB_FOLDERS_TABLE = os.getenv("DYNAMODB_FOLDERS_TABLE", "Folders")
 DYNAMODB_DOCUMENTS_TABLE = os.getenv("DYNAMODB_DOCUMENTS_TABLE", "Documents")
 DYNAMODB_AUDIT_LOG_TABLE = os.getenv("DYNAMODB_AUDIT_LOG_TABLE", "AuditLog")
+DYNAMODB_FILE_PASSWORDS_TABLE = os.getenv(
+    "DYNAMODB_FILE_PASSWORDS_TABLE", "FilePasswords"
+)
+DYNAMODB_SCAN_LOGS_TABLE = os.getenv("DYNAMODB_SCAN_LOGS_TABLE", "ScanLogs")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "")
 
 # RESEND API
@@ -27,6 +31,15 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "")
 
 MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
+
+# Locked files are encrypted whole in the browser, so they get a smaller cap.
+# Ciphertext is plaintext + 16 bytes (AES-GCM tag).
+MAX_LOCKED_FILE_BYTES = 25 * 1024 * 1024
+GCM_TAG_BYTES = 16
+
+# Wrong-verifier attempts allowed before a file is temporarily locked out.
+UNLOCK_MAX_FAILED_ATTEMPTS = 5
+UNLOCK_LOCKOUT_SECONDS = 5 * 60
 
 ALLOWED_ORIGINS = [
     origin.strip()

@@ -173,6 +173,18 @@ def delete_folder(
             for file in files:
                 s3_client.delete_file_by_key(file["s3_key"])
                 dynamodb_client.delete_document(department, file["file_id"])
+                if file.get("is_locked"):
+                    try:
+                        dynamodb_client.delete_file_password(
+                            department, file["file_id"]
+                        )
+                    except ClientError as e:
+                        logger.error(
+                            "Failed to delete file password for %s: %s",
+                            file["file_id"],
+                            e,
+                            exc_info=True,
+                        )
                 files_deleted += 1
 
         for fid in reversed(all_folder_ids):

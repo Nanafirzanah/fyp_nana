@@ -20,6 +20,15 @@ export interface Folder {
   parent_folder_id?: string;
 }
 
+/** Public key-derivation parameters of a locked file (not secret). */
+export interface LockKdf {
+  version: 1;
+  kdf: "PBKDF2-SHA256";
+  iterations: number;
+  /** base64 */
+  salt: string;
+}
+
 export interface Document {
   file_id: string;
   display_name: string;
@@ -31,6 +40,9 @@ export interface Document {
   uploaded_at: string;
   file_size: number;
   content_type: string;
+  /** Absent on files uploaded before locking existed; treat as false. */
+  is_locked?: boolean;
+  lock_kdf?: LockKdf;
 }
 
 export interface UploadResponse {
@@ -43,12 +55,26 @@ export interface UploadResponse {
   uploaded_at: string;
   file_size: number;
   content_type: string;
+  is_locked?: boolean;
+  lock_kdf?: LockKdf;
 }
 
 export interface DownloadResponse {
   file_id: string;
   filename: string;
   url: string;
+}
+
+export interface ScanLogEntry {
+  department: string;
+  scan_id: string;
+  file_id: string;
+  file_name: string;
+  user_email: string;
+  scan_type: "upload" | "download" | "lock";
+  result: "clean" | "infected" | "not_fully_scanned" | "error";
+  timestamp: string;
+  details?: string;
 }
 
 export interface FolderListResponse {

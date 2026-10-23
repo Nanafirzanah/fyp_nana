@@ -363,6 +363,14 @@ def delete_document(
         )
         raise HTTPException(status_code=503, detail="Failed to delete file record")
 
+    if document.get("is_locked"):
+        try:
+            dynamodb_client.delete_file_password(department, file_id)
+        except ClientError as e:
+            logger.error(
+                "Failed to delete file password for %s: %s", file_id, e, exc_info=True
+            )
+
     try:
         dynamodb_client.create_audit_log_entry(
             department=department,
