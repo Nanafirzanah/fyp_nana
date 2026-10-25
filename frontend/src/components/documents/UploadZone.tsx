@@ -1,61 +1,53 @@
 /**
- * Drag & Drop file upload zone
- * Accept click to browse
+ * Drag & Drop upload zone for files and whole folders.
+ * Click to browse files, or use "upload a folder" to pick a folder.
  */
 
 import { useRef, useState } from "react";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, FolderUp } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ACCEPTED_EXTENSIONS,
+  MAX_FILES_PER_UPLOAD,
+  itemsFromDataTransfer,
+  itemsFromFileList,
+  partitionSupported,
+  type UploadItem,
+} from "../../utils/uploadItems";
 
 interface UploadZoneProps {
-  onUpload: (files: File[]) => void;
+  onUpload: (items: UploadItem[]) => void;
   uploading: boolean;
 }
 
-const ACCEPTED_EXTENSIONS = [
-  ".pdf",
-  ".doc",
-  ".docx",
-  ".xls",
-  ".xlsx",
-  ".csv",
-  ".pptx",
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".txt",
-];
-
-function getExtension(filename: string): string {
-  const idx = filename.lastIndexOf(".");
-  return idx === -1 ? "" : filename.slice(idx).toLowerCase();
-}
+// `webkitdirectory` is not in React's typings but is supported by all major browsers.
+const FOLDER_INPUT_ATTRS = { webkitdirectory: "", directory: "" } as Record<
+  string,
+  string
+>;
 
 export default function UploadZone({ onUpload, uploading }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
-  function handleFiles(files: File[]) {
+  function handleItems(items: UploadItem[]) {
     if (uploading) return;
 
-    const validFiles: File[] = [];
-    const invalidExtensions = new Set<string>();
+    const { supported, unsupportedExtensions } = partitionSupported(items);
 
-    for (const file of files) {
-      const ext = getExtension(file.name);
-      if (ACCEPTED_EXTENSIONS.includes(ext)) {
-        validFiles.push(file);
-      } else {
-        invalidExtensions.add(ext || "(no extension)");
-      }
-    }
-
-    if (invalidExtensions.size > 0) {
+    if (unsupportedExtensions.length > 0) {
       toast.error(
-        `File format not supported: ${Array.from(invalidExtensions).join(",")}`,
+        `File format not supported: ${unsupportedExtensions.join(",")}`,
       );
     }
-    if (validFiles.length) onUpload(validFiles);
+    if (supported.length > MAX_FILES_PER_UPLOAD) {
+      toast.error(
+        `Too many files: ${supported.length}. The limit is ${MAX_FILES_PER_UPLOAD} files per upload.`,
+      );
+      return;
+    }
+    if (supported.length) onUpload(supported);
   }
 
   function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
@@ -68,35 +60,53 @@ export default function UploadZone({ onUpload, uploading }: UploadZoneProps) {
     setIsDragging(false);
   }
 
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length) handleFiles(files);
+    if (uploading) return;
+    try {
+      const items = await itemsFromDataTransfer(e.dataTransfer);
+      if (items.length) handleItems(items);
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not read the dropped files. Try again.");
+    }
   }
 
   return (
     <div
-      onClick={() => !uploading && inputRef.current?.click()}
+      onClick={() => !uploading && fileInputRef.current?.click()}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`w-full rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors cursor-pointer select-none ${uploading ? "border-slate-200 bg-slate-50 cursor-not-allowed" : isDragging ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"}`}
     >
       <input
-        ref={inputRef}
+        ref={fileInputRef}
         type="file"
         multiple
         accept={ACCEPTED_EXTENSIONS.join(",")}
         className="hidden"
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
-          if (files.length) handleFiles(files);
           e.target.value = "";
+          if (files.length) handleItems(itemsFromFileList(files));
+        }}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        {...FOLDER_INPUT_ATTRS}
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          if (files.length) handleItems(itemsFromFileList(files));
         }}
       />
 
-      <div className="flex flex-col items-center gap-2 pointer-events-none">
+      <div className="flex flex-col items-center gap-2">
         {uploading ? (
           <>
             <Loader2
@@ -118,12 +128,23 @@ export default function UploadZone({ onUpload, uploading }: UploadZoneProps) {
             <div>
               <p className="text-sm font-medium text-slate-700">
                 <span className="text-blue-600">Click to upload</span> or drag
-                and drop
+                and drop files or a folder
               </p>
               <p className="text-xs text-slate-400 mt-1">
                 PDF, DOCX, TXT, XLSX, CSV, PPTX, PNG, JPEG
               </p>
             </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                folderInputRef.current?.click();
+              }}
+              className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              <FolderUp size={14} aria-hidden="true" />
+              Upload a folder
+            </button>
           </>
         )}
       </div>

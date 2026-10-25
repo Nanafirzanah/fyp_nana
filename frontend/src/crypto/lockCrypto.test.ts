@@ -6,10 +6,12 @@ import {
   base64ToBytes,
   bytesToBase64,
   computeVerifier,
+  createEncryptionContext,
   decryptBytes,
   decryptWithKey,
   deriveSecrets,
   encryptBytes,
+  encryptWithContext,
 } from "./lockCrypto";
 
 // PBKDF2 at 600k iterations takes a few hundred ms; tests use a low count
@@ -128,5 +130,28 @@ describe("lockCrypto", () => {
     await expect(
       decryptWithKey(enc.ciphertext, aesKey, enc.params.iv),
     ).rejects.toBeInstanceOf(InvalidPasswordError);
+  });
+
+  it("a batch context derives once: same salt and verifier, a fresh IV per file", async () => {
+    const ctx = await createEncryptionContext("batch-pw", FAST);
+    const a = await encryptWithContext(ctx, sampleBytes(40));
+    const b = await encryptWithContext(ctx, sampleBytes(80));
+    expect(a.params.salt).toBe(b.params.salt);
+    expect(a.verifier).toBe(b.verifier);
+    expect(a.params.iv).not.toBe(b.params.iv);
+    expect(a.ciphertext.length).toBe(40 + GCM_TAG_BYTES);
+    expect(b.ciphertext.length).toBe(80 + GCM_TAG_BYTES);
+  });
+
+  it("every file from a batch context decrypts with the password, and not without it", async () => {
+    const ctx = await createEncryptionContext("batch-pw", FAST);
+    const plainA = sampleBytes(40);
+    const plainB = sampleBytes(80);
+    const a = await encryptWithContext(ctx, plainA);
+    const b = await encryptWithContext(ctx, plainB);
+    expect(Array.from(await decryptBytes(a.ciphertext, "batch-pw", a.params))).toEqual(Array.from(plainA));
+    expect(Array.from(await decryptBytes(b.ciphertext, "batch-pw", b.params))).toEqual(Array.from(plainB));
+    expect(await computeVerifier("batch-pw", a.params)).toBe(a.verifier);
+    await expect(decryptBytes(b.ciphertext, "nope", b.params)).rejects.toBeInstanceOf(InvalidPasswordError);
   });
 });

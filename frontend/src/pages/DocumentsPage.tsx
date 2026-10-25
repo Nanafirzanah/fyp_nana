@@ -30,9 +30,22 @@ import UploadZone from "../components/documents/UploadZone";
 import RenameModal from "../components/documents/RenameModal";
 import UploadOptionsModal from "../components/documents/UploadOptionsModal";
 import UnlockModal from "../components/documents/UnlockModal";
-import { encryptBytes } from "../crypto/lockCrypto";
+import {
+  createEncryptionContext,
+  encryptWithContext,
+  type EncryptionContext,
+} from "../crypto/lockCrypto";
 import { unlockAndDecrypt } from "../crypto/unlockFile";
 import { saveBlob } from "../utils/saveBlob";
+import {
+  displayPath,
+  ensureFolderPath,
+  runPool,
+  singleTopFolder,
+  type FolderApi,
+  type FolderCache,
+  type UploadItem,
+} from "../utils/uploadItems";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import SuccessDialog from "../components/ui/SuccessDialog";
 import { toast } from "sonner";
@@ -49,6 +62,10 @@ interface BreadcrumbEntry {
   folderName: string;
 }
 
+// Files uploaded at the same time. Each upload is several round trips to AWS,
+// so a few in parallel is much faster than one after another.
+const UPLOAD_PARALLELISM = 4;
+
 type ActionTarget =
   | { type: "folder"; item: Folder }
   | { type: "file"; item: Document };
@@ -61,7 +78,9 @@ export default function DocumentsPage({
   const [files, setFiles] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [pendingUpload, setPendingUpload] = useState<File[] | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<UploadItem[] | null>(
+    null,
+  );
   const [unlockTarget, setUnlockTarget] = useState<Document | null>(null);
   const [successDialog, setSuccessDialog] = useState<{
     message: string;
@@ -296,93 +315,154 @@ export default function DocumentsPage({
 
   // UPLOAD
 
-  // Picking files only opens the options dialog; the upload starts from there.
-  function handleUpload(selectedFiles: File[]) {
-    setPendingUpload(selectedFiles);
+  // Picking files or a folder only opens the options dialog; the upload starts from there.
+  function handleUpload(items: UploadItem[]) {
+    setPendingUpload(items);
   }
 
-  // password === null: normal upload. Otherwise the file is encrypted in the
+  // password === null: normal upload. Otherwise each file is encrypted in the
   // browser first and only ciphertext + verifier are sent.
-  async function startUpload(selectedFiles: File[], password: string | null) {
+  // Items that came from a folder are uploaded into a recreated folder tree
+  // under the folder the user is currently in.
+  async function startUpload(items: UploadItem[], password: string | null) {
     setPendingUpload(null);
     setUploading(true);
+    const total = items.length;
+    const topFolder = singleTopFolder(items);
+    const verb = password ? "Encrypting and uploading" : "Uploading";
     const id = toast.loading(
-      password
-        ? selectedFiles.length > 1
-          ? `Encrypting and uploading ${selectedFiles.length} files...`
-          : "Encrypting and uploading file..."
-        : selectedFiles.length > 1
-          ? `Uploading ${selectedFiles.length} files...`
-          : "Uploading file...",
+      total > 1 ? `${verb} ${total} files...` : `${verb} file...`,
     );
-    const failed: { name: string; reason: string }[] = [];
-    let succeededCount = 0;
 
-    for (const file of selectedFiles) {
+    // 1. Create the folders first, one path at a time (cheap: new folders are
+    //    created without listing, existing ones are reused).
+    const folderApi: FolderApi = {
+      list: async (parentId) => (await listFolders(idToken, parentId)).folders,
+      create: (name, parentId) => createFolder(idToken, name, parentId),
+    };
+    const folderCache: FolderCache = new Map();
+    const folderIds = new Map<string, string | undefined>();
+    const brokenPaths = new Set<string>();
+    let foldersCreated = 0;
+    for (const key of new Set(items.map((i) => i.folderPath.join("/")))) {
       try {
-        if (password) {
-          const encrypted = await encryptBytes(
-            new Uint8Array(await file.arrayBuffer()),
-            password,
-          );
-          await uploadLockedDocument(
-            idToken,
-            file,
-            encrypted,
+        folderIds.set(
+          key,
+          await ensureFolderPath(
+            key ? key.split("/") : [],
             currentFolderId ?? undefined,
-          );
-        } else {
-          await uploadDocument(idToken, file, currentFolderId ?? undefined);
-        }
-        succeededCount++;
+            folderApi,
+            folderCache,
+            () => foldersCreated++,
+          ),
+        );
       } catch (err) {
         console.error(err);
-        const message = err instanceof Error ? err.message : "";
-        failed.push({
-          name: file.name,
-          reason: message.startsWith("413")
-            ? password
-              ? "exceeds the 25MB limit for locked files"
-              : "exceeds the 50MB upload limit"
-            : "upload failed",
-        });
+        brokenPaths.add(key);
       }
     }
 
-    if (succeededCount > 0) {
+    // 2. Derive the encryption key once for the whole batch.
+    let context: EncryptionContext | null = null;
+    if (password) {
+      try {
+        context = await createEncryptionContext(password);
+      } catch (err) {
+        console.error(err);
+        toast.error("Encryption failed. Try again.", { id });
+        setUploading(false);
+        return;
+      }
+    }
+
+    // 3. Upload, a few files at a time.
+    let finished = 0;
+    const results = await runPool(items, UPLOAD_PARALLELISM, async (item) => {
+      const key = item.folderPath.join("/");
+      if (brokenPaths.has(key)) throw new Error("folder-failed");
+      const targetFolderId = folderIds.get(key);
+      if (context) {
+        const encrypted = await encryptWithContext(
+          context,
+          new Uint8Array(await item.file.arrayBuffer()),
+        );
+        await uploadLockedDocument(idToken, item.file, encrypted, targetFolderId);
+      } else {
+        await uploadDocument(idToken, item.file, targetFolderId);
+      }
+      finished++;
+      if (total > 1) {
+        toast.loading(`${verb} ${finished} of ${total}...`, { id });
+      }
+    });
+
+    const failed: { name: string; reason: string }[] = [];
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") return;
+      console.error(result.reason);
+      const message =
+        result.reason instanceof Error ? result.reason.message : "";
+      failed.push({
+        name: displayPath(items[index]),
+        reason:
+          message === "folder-failed"
+            ? "could not create its folder"
+            : message.startsWith("413")
+              ? password
+                ? "exceeds the 25MB limit for locked files"
+                : "exceeds the 50MB upload limit"
+              : "upload failed",
+      });
+    });
+    const succeededCount = total - failed.length;
+
+    if (succeededCount > 0 || foldersCreated > 0) {
       await loadData();
     }
+
+    const filesWord = (n: number) => `${n} ${n === 1 ? "file" : "files"}`;
+    const foldersNote =
+      foldersCreated > 0
+        ? ` in ${foldersCreated} new ${foldersCreated === 1 ? "folder" : "folders"}`
+        : "";
 
     if (failed.length === 0) {
       toast.success(
         password
-          ? selectedFiles.length > 1
-            ? `${selectedFiles.length} files encrypted and uploaded`
-            : "File encrypted and uploaded"
-          : selectedFiles.length > 1
-            ? `${selectedFiles.length} files uploaded`
-            : "File uploaded",
+          ? `${filesWord(total)} encrypted and uploaded${foldersNote}`
+          : `${filesWord(total)} uploaded${foldersNote}`,
         { id },
       );
       setSuccessDialog({
-        message:
-          selectedFiles.length > 1
-            ? `${selectedFiles.length} files successfully uploaded.`
+        message: topFolder
+          ? "Folder successfully uploaded."
+          : total > 1
+            ? `${total} files successfully uploaded.`
             : "File successfully uploaded.",
-        detail: selectedFiles.length === 1 ? selectedFiles[0].name : undefined,
+        detail: topFolder
+          ? `${topFolder}: ${filesWord(total)}${foldersNote}`
+          : total === 1
+            ? items[0].file.name
+            : undefined,
       });
     } else if (succeededCount > 0) {
       toast.success(
-        `${succeededCount} of ${selectedFiles.length} files uploaded`,
+        `${succeededCount} of ${total} files uploaded${foldersNote}`,
         { id },
       );
     } else {
       toast.dismiss(id);
     }
 
-    failed.forEach(({ name, reason }) => {
+    const shown = failed.slice(0, 5);
+    shown.forEach(({ name, reason }) => {
       toast.error(`"${name}" not uploaded - ${reason}`);
     });
+    if (failed.length > shown.length) {
+      toast.error(
+        `${failed.length - shown.length} more files were not uploaded`,
+      );
+    }
 
     setUploading(false);
   }
@@ -666,7 +746,7 @@ export default function DocumentsPage({
       {/* Upload options (normal or password-locked) */}
       {pendingUpload && (
         <UploadOptionsModal
-          files={pendingUpload}
+          items={pendingUpload}
           onConfirm={(password) => startUpload(pendingUpload, password)}
           onClose={() => setPendingUpload(null)}
         />

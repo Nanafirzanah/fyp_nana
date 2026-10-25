@@ -137,7 +137,55 @@ export async function computeVerifier(
 }
 
 /**
- * Encrypt file bytes with a fresh random salt and IV.
+ * Key material for encrypting several files with the same password in one go
+ * (a multi-file or folder upload). PBKDF2 runs once; every file still gets its
+ * own random IV, so the (key, IV) pairs never repeat. Each file gets the same
+ * public salt and verifier, which is fine: both come from the same password.
+ */
+export interface EncryptionContext {
+  aesKey: CryptoKey;
+  verifier: string;
+  params: Pick<LockParams, "version" | "kdf" | "iterations" | "salt">;
+}
+
+export async function createEncryptionContext(
+  password: string,
+  iterations: number = KDF_ITERATIONS,
+): Promise<EncryptionContext> {
+  const salt = randomBytes(SALT_BYTES);
+  const { aesKey, verifier } = await deriveSecrets(password, salt, iterations);
+  return {
+    aesKey,
+    verifier,
+    params: {
+      version: 1,
+      kdf: "PBKDF2-SHA256",
+      iterations,
+      salt: bytesToBase64(salt),
+    },
+  };
+}
+
+/** Encrypt one file with a context from createEncryptionContext (fresh IV each call). */
+export async function encryptWithContext(
+  ctx: EncryptionContext,
+  plaintext: Uint8Array<ArrayBuffer>,
+): Promise<EncryptedFile> {
+  const iv = randomBytes(IV_BYTES);
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    ctx.aesKey,
+    plaintext,
+  );
+  return {
+    ciphertext: new Uint8Array(encrypted),
+    verifier: ctx.verifier,
+    params: { ...ctx.params, iv: bytesToBase64(iv) },
+  };
+}
+
+/**
+ * Encrypt one file with a fresh random salt and IV.
  * `iterations` is only overridden by tests; production code uses the default.
  */
 export async function encryptBytes(
@@ -145,27 +193,8 @@ export async function encryptBytes(
   password: string,
   iterations: number = KDF_ITERATIONS,
 ): Promise<EncryptedFile> {
-  const salt = randomBytes(SALT_BYTES);
-  const iv = randomBytes(IV_BYTES);
-  const { aesKey, verifier } = await deriveSecrets(password, salt, iterations);
-
-  const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    aesKey,
-    plaintext,
-  );
-
-  return {
-    ciphertext: new Uint8Array(encrypted),
-    verifier,
-    params: {
-      version: 1,
-      kdf: "PBKDF2-SHA256",
-      iterations,
-      salt: bytesToBase64(salt),
-      iv: bytesToBase64(iv),
-    },
-  };
+  const ctx = await createEncryptionContext(password, iterations);
+  return encryptWithContext(ctx, plaintext);
 }
 
 /**
