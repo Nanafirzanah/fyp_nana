@@ -156,7 +156,7 @@ export default function FileRow({
 
   return (
     <div
-      className={`group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors ${onOpen ? "cursor-pointer" : ""} ${selected ? "bg-indigo-50" : ""}`}
+      className={`group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors ${onOpen ? "cursor-pointer" : ""} ${selected ? "bg-blue-50" : ""}`}
       onClick={onOpen ? () => onOpen(document) : undefined}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -169,7 +169,7 @@ export default function FileRow({
           checked={selected}
           onClick={(e) => e.stopPropagation()}
           onChange={() => onToggleSelect(document.file_id)}
-          className={`w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300 flex-shrink-0 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+          className={`w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-300 flex-shrink-0 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
           aria-label={`Select ${document.display_name}`}
         />
       )}
@@ -199,6 +199,30 @@ export default function FileRow({
       </div>
       <div className="hidden sm:block text-xs text-slate-400 flex-shrink-0 max-w-[140px] truncate">
         {document.uploaded_by_name}
+      </div>
+      <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0 text-slate-400">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDownload(document);
+          }}
+          title="Download"
+          aria-label={`Download ${document.display_name}`}
+          className="p-1.5 rounded-md hover:bg-slate-200 hover:text-slate-700 transition-colors"
+        >
+          <Download size={15} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRename(document);
+          }}
+          title="Rename"
+          aria-label={`Rename ${document.display_name}`}
+          className="p-1.5 rounded-md hover:bg-slate-200 hover:text-slate-700 transition-colors"
+        >
+          <Pencil size={15} />
+        </button>
       </div>
       <ContextMenu items={menuItems} ref={menuRef} />
     </div>

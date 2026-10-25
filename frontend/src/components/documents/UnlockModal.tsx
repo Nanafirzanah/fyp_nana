@@ -87,7 +87,7 @@ export default function UnlockModal({
             autoFocus
             autoComplete="off"
             disabled={busy}
-            className="w-full text-sm px-3 py-2 pr-10 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-60"
+            className="w-full text-sm px-3 py-2 pr-10 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60"
           />
           <button
             type="button"
@@ -116,7 +116,7 @@ export default function UnlockModal({
           <button
             onClick={handleSubmit}
             disabled={!password || busy}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
             {busy ? "Decrypting..." : "Unlock & download"}

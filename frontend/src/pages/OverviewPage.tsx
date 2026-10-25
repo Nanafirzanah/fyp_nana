@@ -82,10 +82,10 @@ export default function OverviewPage({ profile, idToken }: OverviewPageProps) {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center mb-2">
+          <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center mb-2">
             <FileText
               size={15}
-              className="text-indigo-600"
+              className="text-blue-600"
               aria-hidden="true"
             />
           </div>

@@ -77,7 +77,7 @@ const ContextMenu = forwardRef<ContextMenuHandle, ContextMenuProps>(
             setMenuSize(null);
             setOpen((prev) => !prev);
           }}
-          className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-300"
           aria-label="More options"
         >
           <MoreVertical size={15} aria-hidden="true" />

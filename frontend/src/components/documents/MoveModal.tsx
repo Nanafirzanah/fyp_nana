@@ -154,7 +154,7 @@ export default function MoveModal({
         <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3 flex-wrap">
           <button
             onClick={handleGoRoot}
-            className={`transition-colors ${stack.length > 0 ? "hover:text-indigo-600 cursor-pointer" : "text-slate-600 font-medium pointer-events-none"}`}
+            className={`transition-colors ${stack.length > 0 ? "hover:text-blue-600 cursor-pointer" : "text-slate-600 font-medium pointer-events-none"}`}
           >
             Documents
           </button>
@@ -167,7 +167,7 @@ export default function MoveModal({
                     ? handleBreadcrumbNav(index)
                     : undefined
                 }
-                className={`transition-colors ${index < stack.length - 1 ? "hover:text-indigo-600 cursor-pointer" : "text-slate-600 font-medium pointer-events-none"}`}
+                className={`transition-colors ${index < stack.length - 1 ? "hover:text-blue-600 cursor-pointer" : "text-slate-600 font-medium pointer-events-none"}`}
               >
                 {entry.folderName}
               </button>
@@ -215,7 +215,7 @@ export default function MoveModal({
           <button
             onClick={handleMoveHere}
             disabled={moving}
-            className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-600"
+            className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
           >
             {moving
               ? "Moving..."

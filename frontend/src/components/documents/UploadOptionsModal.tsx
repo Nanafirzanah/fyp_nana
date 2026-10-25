@@ -84,7 +84,7 @@ export default function UploadOptionsModal({
             type="checkbox"
             checked={lockEnabled}
             onChange={(e) => setLockEnabled(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300"
+            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-300"
           />
           <Lock size={14} aria-hidden="true" />
           Lock with a password
@@ -99,7 +99,7 @@ export default function UploadOptionsModal({
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="File password"
                 autoComplete="new-password"
-                className="w-full text-sm px-3 py-2 pr-10 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="w-full text-sm px-3 py-2 pr-10 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
               />
               <button
                 type="button"
@@ -117,7 +117,7 @@ export default function UploadOptionsModal({
               onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
               placeholder="Confirm password"
               autoComplete="new-password"
-              className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
 
             <div className="flex gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs leading-relaxed">
@@ -138,7 +138,7 @@ export default function UploadOptionsModal({
                 type="checkbox"
                 checked={acknowledged}
                 onChange={(e) => setAcknowledged(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300"
+                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-300"
               />
               I understand the password cannot be recovered
             </label>
@@ -161,7 +161,7 @@ export default function UploadOptionsModal({
           <button
             onClick={handleConfirm}
             disabled={!canSubmit}
-            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {lockEnabled ? "Encrypt & upload" : "Upload"}
           </button>

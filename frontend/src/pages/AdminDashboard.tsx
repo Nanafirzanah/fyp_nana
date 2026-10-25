@@ -214,14 +214,14 @@ export default function AdminDashboard({ idToken }: AdminDashboardProps) {
         <button
           type="button"
           onClick={() => setActiveTab("employees")}
-          className={`px-4 py-2 text-sm font-medium ${activeTab === "employees" ? "border-b-2 border-indigo-600 text-indigo-700" : "text-slate-500 hover:text-slate-700"}`}
+          className={`px-4 py-2 text-sm font-medium ${activeTab === "employees" ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-500 hover:text-slate-700"}`}
         >
           Employees
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("audit-log")}
-          className={`px-4 py-2 text-sm font-medium ${activeTab === "audit-log" ? "border-b-2 border-indigo-600 text-indigo-700" : "text-slate-500 hover:text-slate-700"}`}
+          className={`px-4 py-2 text-sm font-medium ${activeTab === "audit-log" ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-500 hover:text-slate-700"}`}
         >
           Audit Log
         </button>
@@ -372,7 +372,7 @@ export default function AdminDashboard({ idToken }: AdminDashboardProps) {
                 <button
                   type="submit"
                   disabled={isRegistering || !form.temp_password}
-                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isRegistering ? "Registering..." : "Register Employee"}
                 </button>
@@ -485,13 +485,13 @@ export default function AdminDashboard({ idToken }: AdminDashboardProps) {
                               type="text"
                               value={editDept}
                               onChange={(e) => setEditDept(e.target.value)}
-                              className="w-28 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                              className="w-28 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
                             />
                             <button
                               type="button"
                               onClick={() => handleSaveDept(emp.email)}
                               disabled={pendingEmail === emp.email}
-                              className="inline-flex items-center rounded-md border border-indigo-200 px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                              className="inline-flex items-center rounded-md border border-blue-200 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
                             >
                               Save
                             </button>
@@ -549,13 +549,13 @@ export default function AdminDashboard({ idToken }: AdminDashboardProps) {
                               type="text"
                               value={editDept}
                               onChange={(e) => setEditDept(e.target.value)}
-                              className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                              className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
                             />
                             <button
                               type="button"
                               onClick={() => handleSaveDept(emp.email)}
                               disabled={pendingEmail === emp.email}
-                              className="inline-flex items-center rounded-md border border-indigo-200 px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                              className="inline-flex items-center rounded-md border border-blue-200 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
                             >
                               Save
                             </button>

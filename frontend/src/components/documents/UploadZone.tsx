@@ -81,7 +81,7 @@ export default function UploadZone({ onUpload, uploading }: UploadZoneProps) {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`w-full rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors cursor-pointer select-none ${uploading ? "border-slate-200 bg-slate-50 cursor-not-allowed" : isDragging ? "border-indigo-400 bg-indigo-50" : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50"}`}
+      className={`w-full rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors cursor-pointer select-none ${uploading ? "border-slate-200 bg-slate-50 cursor-not-allowed" : isDragging ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"}`}
     >
       <input
         ref={inputRef}
@@ -101,23 +101,23 @@ export default function UploadZone({ onUpload, uploading }: UploadZoneProps) {
           <>
             <Loader2
               size={28}
-              className="text-indigo-500 animate-spin"
+              className="text-blue-500 animate-spin"
               aria-hidden="true"
             />
             <p className="text-sm font-medium text-slate-600">Uploading...</p>
           </>
         ) : (
           <>
-            <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
               <Upload
                 size={18}
-                className="text-indigo-500"
+                className="text-blue-500"
                 aria-hidden="true"
               />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-700">
-                <span className="text-indigo-600">Click to upload</span> or drag
+                <span className="text-blue-600">Click to upload</span> or drag
                 and drop
               </p>
               <p className="text-xs text-slate-400 mt-1">

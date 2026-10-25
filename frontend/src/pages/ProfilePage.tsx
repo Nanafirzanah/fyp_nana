@@ -172,7 +172,7 @@ export default function ProfilePage({ idToken, profile }: ProfilePageProps) {
             <button
               type="button"
               onClick={startEditing}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1 text-sm font-medium text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1 text-sm font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
             >
               <Pencil size={13} aria-hidden="true" />
               Edit
@@ -194,7 +194,7 @@ export default function ProfilePage({ idToken, profile }: ProfilePageProps) {
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
                 placeholder="123 Main St, Kuala Lumpur"
               />
             </div>
@@ -211,7 +211,7 @@ export default function ProfilePage({ idToken, profile }: ProfilePageProps) {
                 inputMode="numeric"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
                 placeholder="60123456789"
                 maxLength={15}
               />
@@ -225,7 +225,7 @@ export default function ProfilePage({ idToken, profile }: ProfilePageProps) {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? "Saving…" : "Save Changes"}
               </button>

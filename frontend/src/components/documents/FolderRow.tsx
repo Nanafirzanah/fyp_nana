@@ -60,7 +60,7 @@ export default function FolderRow({
 
   return (
     <div
-      className={`group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer ${selected ? "bg-indigo-50" : ""}`}
+      className={`group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer ${selected ? "bg-blue-50" : ""}`}
       onDoubleClick={() => onOpen(folder.folder_id)}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -73,13 +73,13 @@ export default function FolderRow({
           checked={selected}
           onClick={(e) => e.stopPropagation()}
           onChange={() => onToggleSelect(folder.folder_id)}
-          className={`w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300 flex-shrink-0 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+          className={`w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-300 flex-shrink-0 transition-opacity ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
           aria-label={`Select ${folder.name}`}
         />
       )}
       {/* Folder Icon */}
-      <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-        <Folder size={18} className="text-amber-600" aria-hidden="true" />
+      <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+        <Folder size={18} className="text-blue-500" aria-hidden="true" />
       </div>
 
       {/* Folder Info */}

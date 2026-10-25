@@ -174,7 +174,7 @@ export default function ResetPasswordPage() {
         <button
           type="submit"
           disabled={isSubmitting || !!passwordHint}
-          className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Resetting..." : "Reset Password"}
         </button>

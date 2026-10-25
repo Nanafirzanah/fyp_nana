@@ -480,7 +480,7 @@ export default function DocumentsPage({
             <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
               <button
                 onClick={handleGoRoot}
-                className={`transition-colors ${isInsideFolder ? "hover:text-indigo-600 cursor-pointer" : "text-slate-500 font-medium pointer-events-none"}`}
+                className={`transition-colors ${isInsideFolder ? "hover:text-blue-600 cursor-pointer" : "text-slate-500 font-medium pointer-events-none"}`}
               >
                 Documents
               </button>
@@ -496,7 +496,7 @@ export default function DocumentsPage({
                         ? handleBreadcrumbNav(index)
                         : undefined
                     }
-                    className={`transition-colors ${index < folderStack.length - 1 ? "hover:text-indigo-600 cursor-pointer" : "text-slate-600 font-medium pointer-events-none"}`}
+                    className={`transition-colors ${index < folderStack.length - 1 ? "hover:text-blue-600 cursor-pointer" : "text-slate-600 font-medium pointer-events-none"}`}
                   >
                     {entry.folderName}
                   </button>
@@ -514,7 +514,7 @@ export default function DocumentsPage({
           {/* New Folder */}
           <button
             onClick={() => setCreateFolderOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300"
           >
             <FolderPlus size={15} aria-hidden="true" />
             <span className="hidden sm:inline">New Folder</span>
@@ -546,20 +546,20 @@ export default function DocumentsPage({
         <div ref={contentListRef}>
           {/* Indicator Bar */}
           {selectedCount > 0 && (
-            <div className="flex items-center justify-between px-4 py-2 mb-4 rounded-lg bg-indigo-50 border border-indigo-100">
-              <span className="text-sm text-indigo-700 font-medium">
+            <div className="flex items-center justify-between px-4 py-2 mb-4 rounded-lg bg-blue-50 border border-blue-100">
+              <span className="text-sm text-blue-700 font-medium">
                 {selectedCount} selected
               </span>
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleMoveSelected}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer"
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
                 >
                   Move
                 </button>
                 <button
                   onClick={clearSelection}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                  className="text-xs text-blue-600 hover:text-blue-800 underline cursor-pointer"
                 >
                   Clear
                 </button>
@@ -580,7 +580,7 @@ export default function DocumentsPage({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search folders & files.."
-                    className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                   <button
                     onClick={handleSearchClose}
@@ -597,7 +597,7 @@ export default function DocumentsPage({
                   </span>
                   <button
                     onClick={handleSearchOpen}
-                    className="text-slate-400 hover:text-indigo-600"
+                    className="text-slate-400 hover:text-blue-600"
                     aria-label="Search folders & files"
                   >
                     <Search size={16} />

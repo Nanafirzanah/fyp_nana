@@ -49,8 +49,8 @@ export default function RenameModal({
         aria-labelledby="rename-modal-title"
       >
         {/* Icon */}
-        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
-          <Pencil size={18} className="text-indigo-600" aria-hidden="true" />
+        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-4">
+          <Pencil size={18} className="text-blue-600" aria-hidden="true" />
         </div>
         <h2
           id="rename-modal-title"
@@ -69,7 +69,7 @@ export default function RenameModal({
               if (e.key === "Escape") onClose();
             }}
             autoFocus
-            className="flex-1 min-w-0 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-colors"
+            className="flex-1 min-w-0 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-colors"
           />
           {extension && (
             <span className="text-sm text-slate-400 flex-shrink-0 pr-1">
@@ -88,7 +88,7 @@ export default function RenameModal({
           <button
             onClick={handleConfirm}
             disabled={!isValid}
-            className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-indigo-600"
+            className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
           >
             Save
           </button>
