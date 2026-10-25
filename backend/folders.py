@@ -13,7 +13,7 @@ Routes:
 import uuid
 import logging
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 import dynamodb_client
@@ -33,9 +33,27 @@ class RenameFolderRequest(BaseModel):
     name: str
 
 
+def _audit_create_folder(department: str, employee: dict, folder_id: str, name: str):
+    """Runs after the response is sent; a failure is logged and never fails the request."""
+    try:
+        dynamodb_client.create_audit_log_entry(
+            department=department,
+            action="create_folder",
+            actor_email=employee["email"],
+            target_type="folder",
+            target_id=folder_id,
+            target_name=name,
+        )
+    except ClientError as e:
+        logger.error(
+            "Audit log failed for create folder %s: %s", folder_id, e, exc_info=True
+        )
+
+
 @router.post("")
 def create_folder(
     body: CreateFolderRequest,
+    background: BackgroundTasks,
     employee: dict = Depends(get_current_employee),
 ):
     """
@@ -60,19 +78,7 @@ def create_folder(
         logger.error("Dynamo DB create folder failed: %s", e, exc_info=True)
         raise HTTPException(status_code=503, detail="Failed to create folder")
 
-    try:
-        dynamodb_client.create_audit_log_entry(
-            department=department,
-            action="create_folder",
-            actor_email=employee["email"],
-            target_type="folder",
-            target_id=folder_id,
-            target_name=name,
-        )
-    except ClientError as e:
-        logger.error(
-            "Audit log failed for create folder %s: %s", folder_id, e, exc_info=True
-        )
+    background.add_task(_audit_create_folder, department, employee, folder_id, name)
     return folder
 
 

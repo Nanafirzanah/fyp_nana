@@ -20,7 +20,16 @@ import bcrypt
 import dynamodb_client
 import s3_client
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+    Form,
+    Query,
+)
 from pydantic import BaseModel
 from dependencies import get_current_employee
 from botocore.exceptions import ClientError
@@ -68,6 +77,7 @@ class MoveItemsRequest(BaseModel):
 
 @router.post("/upload")
 async def upload_document(
+    background: BackgroundTasks,
     file: UploadFile = File(...),
     folder_id: str | None = Query(default=None),
     employee: dict = Depends(get_current_employee),
@@ -105,15 +115,23 @@ async def upload_document(
                 status_code=413, detail="File exceeds 50MB upload limit."
             )
     file_bytes = bytes(file_bytes)
+    # boto3 calls block, so run them in worker threads: otherwise one slow upload
+    # would freeze the event loop and parallel uploads would queue behind it.
     try:
-        s3_client.upload_file_by_key(io.BytesIO(file_bytes), s3_key, content_type)
+        await asyncio.to_thread(
+            s3_client.upload_file_by_key,
+            io.BytesIO(file_bytes),
+            s3_key,
+            content_type,
+        )
     except ClientError as e:
         logger.error("S3 upload failed for %s: %s", s3_key, e, exc_info=True)
         raise HTTPException(status_code=503, detail="Failed to upload file to storage")
 
     try:
         # Write metadata to DynamoDB
-        document = dynamodb_client.create_document(
+        document = await asyncio.to_thread(
+            dynamodb_client.create_document,
             department=department,
             file_id=file_id,
             display_name=display_name,
@@ -133,17 +151,8 @@ async def upload_document(
             logger.error("S3 rollback failed - orphaned key %s", s3_key)
         raise HTTPException(status_code=503, detail="Failed to save file record")
 
-    try:
-        dynamodb_client.create_audit_log_entry(
-            department=department,
-            action="upload",
-            actor_email=employee["email"],
-            target_type="document",
-            target_id=file_id,
-            target_name=display_name,
-        )
-    except ClientError as e:
-        logger.error("Audit log failed for upload %s: %s", file_id, e, exc_info=True)
+    # The audit entry is written after the response is sent (saves one AWS round trip).
+    background.add_task(_audit, department, "upload", employee, file_id, display_name)
 
     return document
 
@@ -165,6 +174,7 @@ def _hash_verifier(verifier: str) -> str:
 
 @router.post("/upload-locked")
 async def upload_locked_document(
+    background: BackgroundTasks,
     file: UploadFile = File(...),
     verifier: str = Form(...),
     kdf_salt: str = Form(...),
@@ -218,18 +228,22 @@ async def upload_locked_document(
         else "application/octet-stream"
     )
 
-    verifier_hash = await asyncio.to_thread(_hash_verifier, verifier)
-
     file_id = str(uuid.uuid4())
     s3_key = f"{department}/{file_id}"
 
+    # bcrypt (CPU) and the S3 upload (network) are independent: run them together.
+    hash_task = asyncio.create_task(asyncio.to_thread(_hash_verifier, verifier))
     try:
-        s3_client.upload_file_by_key(
-            io.BytesIO(cipher), s3_key, "application/octet-stream"
+        await asyncio.to_thread(
+            s3_client.upload_file_by_key,
+            io.BytesIO(cipher),
+            s3_key,
+            "application/octet-stream",
         )
     except ClientError as e:
         logger.error("S3 upload failed for %s: %s", s3_key, e, exc_info=True)
         raise HTTPException(status_code=503, detail="Failed to upload file to storage")
+    verifier_hash = await hash_task
 
     def rollback(password_saved: bool) -> None:
         if password_saved:
@@ -243,8 +257,13 @@ async def upload_locked_document(
             logger.error("S3 rollback failed - orphaned key %s", s3_key)
 
     try:
-        dynamodb_client.create_file_password(
-            department, file_id, verifier_hash, iv, employee["email"]
+        await asyncio.to_thread(
+            dynamodb_client.create_file_password,
+            department,
+            file_id,
+            verifier_hash,
+            iv,
+            employee["email"],
         )
     except ClientError as e:
         logger.error("DynamoDB file password failed for %s: %s", file_id, e, exc_info=True)
@@ -252,7 +271,8 @@ async def upload_locked_document(
         raise HTTPException(status_code=503, detail="Failed to save file record")
 
     try:
-        document = dynamodb_client.create_document(
+        document = await asyncio.to_thread(
+            dynamodb_client.create_document,
             department=department,
             file_id=file_id,
             display_name=display_name,
@@ -273,17 +293,9 @@ async def upload_locked_document(
         rollback(password_saved=True)
         raise HTTPException(status_code=503, detail="Failed to save file record")
 
-    try:
-        dynamodb_client.create_audit_log_entry(
-            department=department,
-            action="upload_locked",
-            actor_email=employee["email"],
-            target_type="document",
-            target_id=file_id,
-            target_name=display_name,
-        )
-    except ClientError as e:
-        logger.error("Audit log failed for locked upload %s: %s", file_id, e, exc_info=True)
+    background.add_task(
+        _audit, department, "upload_locked", employee, file_id, display_name
+    )
 
     return document
 
