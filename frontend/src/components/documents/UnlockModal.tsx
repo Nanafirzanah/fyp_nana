@@ -4,7 +4,7 @@
  */
 
 import { useState } from "react";
-import { Lock, Loader2, Eye, EyeOff } from "lucide-react";
+import { KeyRound, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import type { Document } from "../../types";
 
 interface UnlockModalProps {
@@ -60,22 +60,32 @@ export default function UnlockModal({
         aria-modal="true"
         aria-labelledby="unlock-modal-title"
       >
-        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-4">
-          <Lock size={20} className="text-amber-700" aria-hidden="true" />
-        </div>
         <h2
           id="unlock-modal-title"
-          className="text-base font-semibold text-slate-900 mb-1"
+          className="flex items-center gap-2 text-base font-semibold text-slate-900 mb-1"
         >
-          This file is locked
+          <KeyRound size={18} className="text-blue-500" aria-hidden="true" />
+          Authorization Required
         </h2>
-        <p className="text-sm text-slate-500 mb-4 break-words">
-          Enter the password to download{" "}
-          <span className="font-medium text-slate-700">
-            {document.display_name}
-          </span>
-          .
+        <p className="text-sm text-slate-500 mb-3">
+          Please enter your password file to authorize download operations.
         </p>
+
+        <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 mb-4">
+          <Lock
+            size={14}
+            className="mt-0.5 flex-shrink-0 text-amber-700"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-amber-800">
+              This file is locked
+            </p>
+            <p className="text-xs text-amber-700 break-all">
+              {document.display_name}
+            </p>
+          </div>
+        </div>
 
         <div className="relative mb-2">
           <input
@@ -105,6 +115,11 @@ export default function UnlockModal({
           </p>
         )}
 
+        <p className="text-xs text-slate-400">
+          Your password is checked in your browser and never sent to the server.
+          Too many wrong attempts will lock this file for a few minutes.
+        </p>
+
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
@@ -119,7 +134,7 @@ export default function UnlockModal({
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
-            {busy ? "Decrypting..." : "Unlock & download"}
+            {busy ? "Decrypting..." : "Done"}
           </button>
         </div>
       </div>

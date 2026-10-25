@@ -34,6 +34,7 @@ import { encryptBytes } from "../crypto/lockCrypto";
 import { unlockAndDecrypt } from "../crypto/unlockFile";
 import { saveBlob } from "../utils/saveBlob";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import SuccessDialog from "../components/ui/SuccessDialog";
 import { toast } from "sonner";
 import SkeletonRow from "../components/documents/SkeletonRow";
 import MoveModal from "../components/documents/MoveModal";
@@ -62,6 +63,10 @@ export default function DocumentsPage({
   const [uploading, setUploading] = useState(false);
   const [pendingUpload, setPendingUpload] = useState<File[] | null>(null);
   const [unlockTarget, setUnlockTarget] = useState<Document | null>(null);
+  const [successDialog, setSuccessDialog] = useState<{
+    message: string;
+    detail?: string;
+  } | null>(null);
   const [folderStack, setFolderStack] = useState<BreadcrumbEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<ActionTarget | null>(null);
@@ -350,11 +355,22 @@ export default function DocumentsPage({
 
     if (failed.length === 0) {
       toast.success(
-        selectedFiles.length > 1
-          ? `${selectedFiles.length} files uploaded`
-          : "File uploaded",
+        password
+          ? selectedFiles.length > 1
+            ? `${selectedFiles.length} files encrypted and uploaded`
+            : "File encrypted and uploaded"
+          : selectedFiles.length > 1
+            ? `${selectedFiles.length} files uploaded`
+            : "File uploaded",
         { id },
       );
+      setSuccessDialog({
+        message:
+          selectedFiles.length > 1
+            ? `${selectedFiles.length} files successfully uploaded.`
+            : "File successfully uploaded.",
+        detail: selectedFiles.length === 1 ? selectedFiles[0].name : undefined,
+      });
     } else if (succeededCount > 0) {
       toast.success(
         `${succeededCount} of ${selectedFiles.length} files uploaded`,
@@ -461,11 +477,13 @@ export default function DocumentsPage({
     );
     saveBlob(blob, filename);
     setUnlockTarget(null);
-    // Longer than the default so it is still visible after the browser's own
-    // download popup (top-right in Chrome) has covered it.
     toast.success("File decrypted and downloaded", {
       description: filename,
       duration: 8000,
+    });
+    setSuccessDialog({
+      message: "File successfully downloaded.",
+      detail: filename,
     });
   }
 
@@ -651,6 +669,15 @@ export default function DocumentsPage({
           files={pendingUpload}
           onConfirm={(password) => startUpload(pendingUpload, password)}
           onClose={() => setPendingUpload(null)}
+        />
+      )}
+
+      {/* Success confirmation (upload / locked download) */}
+      {successDialog && (
+        <SuccessDialog
+          message={successDialog.message}
+          detail={successDialog.detail}
+          onClose={() => setSuccessDialog(null)}
         />
       )}
 
