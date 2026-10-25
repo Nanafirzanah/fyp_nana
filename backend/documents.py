@@ -13,6 +13,7 @@ import uuid
 import io
 import base64
 import binascii
+from datetime import datetime, timezone
 import asyncio
 import logging
 import bcrypt
@@ -29,6 +30,8 @@ from config import (
     GCM_TAG_BYTES,
     MIN_KDF_ITERATIONS,
     MAX_KDF_ITERATIONS,
+    UNLOCK_MAX_FAILED_ATTEMPTS,
+    UNLOCK_LOCKOUT_SECONDS,
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -51,6 +54,10 @@ CONTENT_TYPE_EXTENSIONS: dict[str, str] = {
 
 class RenameDocumentRequest(BaseModel):
     name: str
+
+
+class UnlockRequest(BaseModel):
+    verifier: str
 
 
 class MoveItemsRequest(BaseModel):
@@ -366,6 +373,116 @@ def download_document(
         "file_id": file_id,
         "filename": document["display_name"],
         "url": url,
+    }
+
+
+def _audit(department: str, action: str, employee: dict, file_id: str, name: str):
+    """Audit failures are logged but never fail the request."""
+    try:
+        dynamodb_client.create_audit_log_entry(
+            department=department,
+            action=action,
+            actor_email=employee["email"],
+            target_type="document",
+            target_id=file_id,
+            target_name=name,
+        )
+    except ClientError as e:
+        logger.error("Audit log failed for %s %s: %s", action, file_id, e, exc_info=True)
+
+
+@router.post("/{file_id}/unlock")
+async def unlock_document(
+    file_id: str,
+    body: UnlockRequest,
+    employee: dict = Depends(get_current_employee),
+):
+    """
+    Release a locked file's ciphertext - only if the verifier matches.
+
+    The browser derives the verifier from the password (never sent itself) and
+    posts it here. On a match the server returns a short-lived presigned URL for
+    the ciphertext plus the IV; the browser decrypts locally. Wrong verifiers are
+    counted per file, and after UNLOCK_MAX_FAILED_ATTEMPTS the file is locked out
+    for UNLOCK_LOCKOUT_SECONDS.
+    """
+    department = employee["department"]
+    if not department:
+        raise HTTPException(status_code=403, detail="No dept assigned to this acc.")
+
+    document = dynamodb_client.get_document(department, file_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not document.get("is_locked"):
+        raise HTTPException(status_code=400, detail="This file is not locked")
+
+    _decode_b64(body.verifier, 32, "verifier")
+
+    try:
+        file_password = dynamodb_client.get_file_password(department, file_id)
+    except ClientError as e:
+        logger.error("DynamoDB get file password failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=503, detail="Failed to unlock file")
+    if file_password is None:
+        logger.error("Locked file %s has no FilePasswords item", file_id)
+        raise HTTPException(status_code=500, detail="Lock data is missing for this file")
+
+    now = int(datetime.now(timezone.utc).timestamp())
+    locked_until = dynamodb_client.unlock_locked_until(file_password)
+    if locked_until is not None:
+        minutes = max(1, -(-(locked_until - now) // 60))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed attempts. Try again in {minutes} minute(s).",
+        )
+
+    matches = await asyncio.to_thread(
+        bcrypt.checkpw,
+        body.verifier.encode("ascii"),
+        file_password["verifier_hash"].encode("ascii"),
+    )
+
+    if not matches:
+        try:
+            result = dynamodb_client.register_failed_unlock(
+                department, file_id, UNLOCK_MAX_FAILED_ATTEMPTS, UNLOCK_LOCKOUT_SECONDS
+            )
+        except ClientError as e:
+            logger.error("DynamoDB register failed unlock: %s", e, exc_info=True)
+            raise HTTPException(status_code=503, detail="Failed to unlock file")
+        _audit(department, "unlock_failed", employee, file_id, document["display_name"])
+        if result["locked_until"] is not None:
+            _audit(department, "unlock_lockout", employee, file_id, document["display_name"])
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Too many failed attempts. Try again in "
+                    f"{UNLOCK_LOCKOUT_SECONDS // 60} minute(s)."
+                ),
+            )
+        attempts_left = UNLOCK_MAX_FAILED_ATTEMPTS - result["failed_attempts"]
+        raise HTTPException(
+            status_code=403,
+            detail=f"Invalid password. {attempts_left} attempt(s) left.",
+        )
+
+    try:
+        dynamodb_client.clear_failed_unlocks(department, file_id)
+        url = s3_client.generate_download_url(
+            s3_key=document["s3_key"], filename=document["display_name"]
+        )
+    except ClientError as e:
+        logger.error("Unlock failed for %s: %s", file_id, e, exc_info=True)
+        raise HTTPException(status_code=503, detail="Failed to unlock file")
+
+    _audit(department, "unlock", employee, file_id, document["display_name"])
+    return {
+        "file_id": file_id,
+        "filename": document["display_name"],
+        "content_type": document["content_type"],
+        "url": url,
+        "iv": file_password["iv"],
+        "lock_kdf": document["lock_kdf"],
     }
 
 

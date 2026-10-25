@@ -9,6 +9,7 @@ import type {
   DownloadResponse,
   MoveResponse,
   UploadResponse,
+  UnlockResponse,
 } from "../types";
 import { getApiBaseUrl, authHeaders, handleResponse } from "./utils";
 import type { EncryptedFile } from "../crypto/lockCrypto";
@@ -158,4 +159,24 @@ export async function moveItems(
     }),
   });
   return handleResponse<MoveResponse>(response);
+}
+
+// UNLOCK
+
+/**
+ * Prove knowledge of the file password by sending its verifier (the password
+ * itself is never sent). On success the server returns the ciphertext URL + IV.
+ * Failures throw "<status>: <message>", e.g. "403: Invalid password. 4 attempt(s) left."
+ */
+export async function unlockDocument(
+  idToken: string,
+  fileId: string,
+  verifier: string,
+): Promise<UnlockResponse> {
+  const response = await fetch(`${getApiBaseUrl()}/documents/${fileId}/unlock`, {
+    method: "POST",
+    headers: { ...authHeaders(idToken), "Content-Type": "application/json" },
+    body: JSON.stringify({ verifier }),
+  });
+  return handleResponse<UnlockResponse>(response);
 }

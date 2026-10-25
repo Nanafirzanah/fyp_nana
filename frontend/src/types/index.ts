@@ -59,6 +59,17 @@ export interface UploadResponse {
   lock_kdf?: LockKdf;
 }
 
+export interface UnlockResponse {
+  file_id: string;
+  filename: string;
+  content_type: string;
+  /** Short-lived presigned URL of the ciphertext. */
+  url: string;
+  /** base64 AES-GCM IV, released only after the verifier matched. */
+  iv: string;
+  lock_kdf: LockKdf;
+}
+
 export interface DownloadResponse {
   file_id: string;
   filename: string;

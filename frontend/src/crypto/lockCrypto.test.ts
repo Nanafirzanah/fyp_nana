@@ -7,6 +7,8 @@ import {
   bytesToBase64,
   computeVerifier,
   decryptBytes,
+  decryptWithKey,
+  deriveSecrets,
   encryptBytes,
 } from "./lockCrypto";
 
@@ -101,5 +103,30 @@ describe("lockCrypto", () => {
     expect(Array.from(base64ToBytes(bytesToBase64(bytes)))).toEqual(
       Array.from(bytes),
     );
+  });
+
+  it("deriveSecrets gives the same verifier and a key that decrypts (unlock flow)", async () => {
+    const plain = sampleBytes(500);
+    const enc = await encryptBytes(plain, "pw", FAST);
+    const { aesKey, verifier } = await deriveSecrets(
+      "pw",
+      base64ToBytes(enc.params.salt),
+      enc.params.iterations,
+    );
+    expect(verifier).toBe(enc.verifier);
+    const dec = await decryptWithKey(enc.ciphertext, aesKey, enc.params.iv);
+    expect(Array.from(dec)).toEqual(Array.from(plain));
+  });
+
+  it("decryptWithKey with the wrong password's key throws InvalidPasswordError", async () => {
+    const enc = await encryptBytes(sampleBytes(20), "right", FAST);
+    const { aesKey } = await deriveSecrets(
+      "wrong",
+      base64ToBytes(enc.params.salt),
+      enc.params.iterations,
+    );
+    await expect(
+      decryptWithKey(enc.ciphertext, aesKey, enc.params.iv),
+    ).rejects.toBeInstanceOf(InvalidPasswordError);
   });
 });

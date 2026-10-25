@@ -29,7 +29,10 @@ import ContentList from "../components/documents/ContentList";
 import UploadZone from "../components/documents/UploadZone";
 import RenameModal from "../components/documents/RenameModal";
 import UploadOptionsModal from "../components/documents/UploadOptionsModal";
+import UnlockModal from "../components/documents/UnlockModal";
 import { encryptBytes } from "../crypto/lockCrypto";
+import { unlockAndDecrypt } from "../crypto/unlockFile";
+import { saveBlob } from "../utils/saveBlob";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import { toast } from "sonner";
 import SkeletonRow from "../components/documents/SkeletonRow";
@@ -58,6 +61,7 @@ export default function DocumentsPage({
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [pendingUpload, setPendingUpload] = useState<File[] | null>(null);
+  const [unlockTarget, setUnlockTarget] = useState<Document | null>(null);
   const [folderStack, setFolderStack] = useState<BreadcrumbEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<ActionTarget | null>(null);
@@ -435,9 +439,7 @@ export default function DocumentsPage({
 
   async function handleDownload(doc: Document) {
     if (doc.is_locked) {
-      toast.info(
-        "This file is locked. Unlocking with a password is added in the next step.",
-      );
+      setUnlockTarget(doc);
       return;
     }
     try {
@@ -447,6 +449,24 @@ export default function DocumentsPage({
       console.error(err);
       toast.error("Download failed. Try again");
     }
+  }
+
+  // Called by the unlock dialog; errors are shown inside the dialog.
+  async function handleUnlock(password: string) {
+    if (!unlockTarget) return;
+    const { blob, filename } = await unlockAndDecrypt(
+      idToken,
+      unlockTarget,
+      password,
+    );
+    saveBlob(blob, filename);
+    setUnlockTarget(null);
+    // Longer than the default so it is still visible after the browser's own
+    // download popup (top-right in Chrome) has covered it.
+    toast.success("File decrypted and downloaded", {
+      description: filename,
+      duration: 8000,
+    });
   }
 
   // RENDER
@@ -631,6 +651,15 @@ export default function DocumentsPage({
           files={pendingUpload}
           onConfirm={(password) => startUpload(pendingUpload, password)}
           onClose={() => setPendingUpload(null)}
+        />
+      )}
+
+      {/* Password prompt for a locked file */}
+      {unlockTarget && (
+        <UnlockModal
+          document={unlockTarget}
+          onUnlock={handleUnlock}
+          onClose={() => setUnlockTarget(null)}
         />
       )}
 

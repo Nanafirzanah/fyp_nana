@@ -169,9 +169,31 @@ export async function encryptBytes(
 }
 
 /**
- * Decrypt. A wrong password and a tampered/corrupted file both fail the GCM
- * authentication check, so both surface as InvalidPasswordError (GCM cannot tell them apart).
+ * Decrypt with an already-derived AES key. The unlock flow derives the key and
+ * the verifier together (one slow PBKDF2 run), sends the verifier to the server,
+ * and uses the key here once the server releases the ciphertext.
+ *
+ * A wrong password and a tampered/corrupted file both fail the GCM
+ * authentication check, so both surface as InvalidPasswordError (GCM cannot
+ * tell them apart).
  */
+export async function decryptWithKey(
+  ciphertext: Uint8Array<ArrayBuffer>,
+  aesKey: CryptoKey,
+  iv: string,
+): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: base64ToBytes(iv) },
+      aesKey,
+      ciphertext,
+    );
+    return new Uint8Array(decrypted);
+  } catch {
+    throw new InvalidPasswordError();
+  }
+}
+
 export async function decryptBytes(
   ciphertext: Uint8Array<ArrayBuffer>,
   password: string,
@@ -185,14 +207,5 @@ export async function decryptBytes(
     base64ToBytes(params.salt),
     params.iterations,
   );
-  try {
-    const decrypted = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: base64ToBytes(params.iv) },
-      aesKey,
-      ciphertext,
-    );
-    return new Uint8Array(decrypted);
-  } catch {
-    throw new InvalidPasswordError();
-  }
+  return decryptWithKey(ciphertext, aesKey, params.iv);
 }
