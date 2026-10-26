@@ -9,6 +9,8 @@ import type { Document } from "../../types";
 
 interface UnlockModalProps {
   document: Document;
+  /** What the password is for; only changes the wording. */
+  purpose?: "download" | "view";
   /** Resolves on success; rejects with an Error whose message is shown to the user. */
   onUnlock: (password: string) => Promise<void>;
   onClose: () => void;
@@ -26,6 +28,7 @@ function friendlyMessage(err: unknown): string {
 
 export default function UnlockModal({
   document,
+  purpose = "download",
   onUnlock,
   onClose,
 }: UnlockModalProps) {
@@ -68,7 +71,7 @@ export default function UnlockModal({
           Authorization Required
         </h2>
         <p className="text-sm text-slate-500 mb-3">
-          Please enter your password file to authorize download operations.
+          Please enter your password file to authorize {purpose} operations.
         </p>
 
         <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 mb-4">

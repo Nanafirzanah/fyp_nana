@@ -70,6 +70,14 @@ export interface UnlockResponse {
   lock_kdf: LockKdf;
 }
 
+export interface ViewResponse {
+  file_id: string;
+  filename: string;
+  content_type: string;
+  /** Short-lived URL that shows the file inline. */
+  url: string;
+}
+
 export interface DownloadResponse {
   file_id: string;
   filename: string;

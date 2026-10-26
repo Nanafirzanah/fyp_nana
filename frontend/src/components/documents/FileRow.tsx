@@ -9,6 +9,7 @@ import {
   Download,
   Move,
   Lock,
+  Eye,
 } from "lucide-react";
 import type { Document } from "../../types";
 import ContextMenu, {
@@ -16,10 +17,12 @@ import ContextMenu, {
   type ContextMenuHandle,
 } from "../ui/ContextMenu";
 import { useRef } from "react";
+import { previewKind } from "../../utils/preview";
 
 interface FileRowProps {
   document: Document;
   onDownload: (document: Document) => void;
+  onView?: (document: Document) => void;
   onRename: (document: Document) => void;
   onDelete: (document: Document) => void;
   onMove: (document: Document) => void;
@@ -120,6 +123,7 @@ function formatDate(iso: string): string {
 export default function FileRow({
   document,
   onDownload,
+  onView,
   onRename,
   onDelete,
   onMove,
@@ -130,7 +134,18 @@ export default function FileRow({
   const style = getExtensionStyle(document.display_name);
   const menuRef = useRef<ContextMenuHandle>(null);
 
+  const canView = !!onView && previewKind(document.display_name) !== null;
+
   const menuItems: ContextMenuItem[] = [
+    ...(canView
+      ? [
+          {
+            label: "View",
+            icon: <Eye size={14} />,
+            onClick: () => onView(document),
+          },
+        ]
+      : []),
     {
       label: "Download",
       icon: <Download size={14} />,
@@ -201,6 +216,19 @@ export default function FileRow({
         {document.uploaded_by_name}
       </div>
       <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0 text-slate-400">
+        {canView && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onView(document);
+            }}
+            title="View"
+            aria-label={`View ${document.display_name}`}
+            className="p-1.5 rounded-md hover:bg-slate-200 hover:text-slate-700 transition-colors"
+          >
+            <Eye size={15} />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

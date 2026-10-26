@@ -18,6 +18,7 @@ import {
   renameDocument,
   deleteDocument,
   getDownloadUrl,
+  getViewUrl,
 } from "../api/documentsApi";
 import {
   listFolders,
@@ -30,6 +31,7 @@ import UploadZone from "../components/documents/UploadZone";
 import RenameModal from "../components/documents/RenameModal";
 import UploadOptionsModal from "../components/documents/UploadOptionsModal";
 import UnlockModal from "../components/documents/UnlockModal";
+import PreviewModal from "../components/documents/PreviewModal";
 import {
   createEncryptionContext,
   encryptWithContext,
@@ -37,6 +39,12 @@ import {
 } from "../crypto/lockCrypto";
 import { unlockAndDecrypt } from "../crypto/unlockFile";
 import { saveBlob } from "../utils/saveBlob";
+import {
+  mimeForPreview,
+  previewKind,
+  truncateForPreview,
+  type PreviewKind,
+} from "../utils/preview";
 import {
   displayPath,
   ensureFolderPath,
@@ -82,6 +90,20 @@ export default function DocumentsPage({
     null,
   );
   const [unlockTarget, setUnlockTarget] = useState<Document | null>(null);
+  const [unlockPurpose, setUnlockPurpose] = useState<"download" | "view">(
+    "download",
+  );
+  const [preview, setPreview] = useState<{
+    doc: Document;
+    kind: PreviewKind;
+    url?: string;
+    text?: string;
+    truncated?: boolean;
+    /** set when the file was decrypted in the browser */
+    blob?: Blob;
+  } | null>(null);
+  // Revokes the blob URL of a decrypted preview (see closePreview).
+  const previewRevokeRef = useRef<(() => void) | null>(null);
   const [successDialog, setSuccessDialog] = useState<{
     message: string;
     detail?: string;
@@ -535,6 +557,7 @@ export default function DocumentsPage({
 
   async function handleDownload(doc: Document) {
     if (doc.is_locked) {
+      setUnlockPurpose("download");
       setUnlockTarget(doc);
       return;
     }
@@ -547,6 +570,73 @@ export default function DocumentsPage({
     }
   }
 
+  // VIEW
+
+  function closePreview() {
+    previewRevokeRef.current?.();
+    previewRevokeRef.current = null;
+    setPreview(null);
+  }
+
+  // Free any decrypted preview if the page is left while it is open.
+  useEffect(() => () => previewRevokeRef.current?.(), []);
+
+  async function handleView(doc: Document) {
+    const kind = previewKind(doc.display_name);
+    if (!kind) {
+      toast.info(
+        "Preview is not available for this file type. Download it instead.",
+      );
+      return;
+    }
+    if (doc.is_locked) {
+      setUnlockPurpose("view");
+      setUnlockTarget(doc);
+      return;
+    }
+    const id = toast.loading("Opening preview...");
+    try {
+      const { url } = await getViewUrl(idToken, doc.file_id);
+      if (kind === "text" || kind === "csv") {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("fetch failed");
+        const { text, truncated } = truncateForPreview(await response.text());
+        setPreview({ doc, kind, text, truncated });
+      } else {
+        setPreview({ doc, kind, url });
+      }
+      toast.dismiss(id);
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not open the preview. Try again.", { id });
+    }
+  }
+
+  // The decrypted file never leaves the browser: pdf/images use a temporary
+  // blob URL (revoked on close), text is read straight from the blob.
+  async function showDecryptedPreview(doc: Document, blob: Blob) {
+    const kind = previewKind(doc.display_name);
+    if (!kind) return;
+    if (kind === "text" || kind === "csv") {
+      const { text, truncated } = truncateForPreview(await blob.text());
+      setPreview({ doc, kind, text, truncated, blob });
+      return;
+    }
+    const typed = new Blob([blob], { type: mimeForPreview(doc.display_name) });
+    const url = URL.createObjectURL(typed);
+    previewRevokeRef.current = () => URL.revokeObjectURL(url);
+    setPreview({ doc, kind, url, blob });
+  }
+
+  function handlePreviewDownload() {
+    if (!preview) return;
+    if (preview.blob) {
+      saveBlob(preview.blob, preview.doc.display_name);
+    } else {
+      void handleDownload(preview.doc);
+    }
+  }
+
   // Called by the unlock dialog; errors are shown inside the dialog.
   async function handleUnlock(password: string) {
     if (!unlockTarget) return;
@@ -555,6 +645,11 @@ export default function DocumentsPage({
       unlockTarget,
       password,
     );
+    if (unlockPurpose === "view") {
+      await showDecryptedPreview(unlockTarget, blob);
+      setUnlockTarget(null);
+      return;
+    }
     saveBlob(blob, filename);
     setUnlockTarget(null);
     toast.success("File decrypted and downloaded", {
@@ -724,6 +819,7 @@ export default function DocumentsPage({
                   setDeleteTarget({ type: "folder", item: folder })
                 }
                 onFileDownload={handleDownload}
+                onFileView={handleView}
                 onFileRename={(file) =>
                   setRenameTarget({ type: "file", item: file })
                 }
@@ -761,10 +857,25 @@ export default function DocumentsPage({
         />
       )}
 
+      {/* File preview */}
+      {preview && (
+        <PreviewModal
+          document={preview.doc}
+          kind={preview.kind}
+          url={preview.url}
+          text={preview.text}
+          truncated={preview.truncated}
+          decrypted={!!preview.blob}
+          onDownload={handlePreviewDownload}
+          onClose={closePreview}
+        />
+      )}
+
       {/* Password prompt for a locked file */}
       {unlockTarget && (
         <UnlockModal
           document={unlockTarget}
+          purpose={unlockPurpose}
           onUnlock={handleUnlock}
           onClose={() => setUnlockTarget(null)}
         />

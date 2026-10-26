@@ -11,6 +11,7 @@ interface ContentListProps {
   onFolderRename: (folder: Folder) => void;
   onFolderDelete: (folder: Folder) => void;
   onFileDownload: (document: Document) => void;
+  onFileView?: (document: Document) => void;
   onFileRename: (document: Document) => void;
   onFileDelete: (document: Document) => void;
   onFileOpen?: (document: Document) => void;
@@ -30,6 +31,7 @@ export default function ContentList({
   onFolderRename,
   onFolderDelete,
   onFileDownload,
+  onFileView,
   onFileRename,
   onFileDelete,
   onFileOpen,
@@ -91,6 +93,7 @@ export default function ContentList({
           key={file.file_id}
           document={file}
           onDownload={onFileDownload}
+          onView={onFileView}
           onRename={onFileRename}
           onDelete={onFileDelete}
           onOpen={onFileOpen}

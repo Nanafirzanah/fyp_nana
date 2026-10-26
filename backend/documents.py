@@ -19,6 +19,7 @@ import logging
 import bcrypt
 import dynamodb_client
 import s3_client
+from preview import preview_content_type
 
 from fastapi import (
     APIRouter,
@@ -335,6 +336,53 @@ def list_documents(
             f["uploaded_by_name"] = f.get("uploaded_by")
 
     return {"department": department, "folder_id": folder_id, "files": files}
+
+
+@router.get("/view/{file_id}")
+def view_document(
+    file_id: str,
+    background: BackgroundTasks,
+    employee: dict = Depends(get_current_employee),
+):
+    """
+    Short-lived URL that shows an unlocked file inline (PDF, image, text, CSV).
+    Locked files cannot be viewed here: the browser decrypts them after unlock.
+    """
+    department = employee["department"]
+    if not department:
+        raise HTTPException(status_code=403, detail="No dept assigned")
+    document = dynamodb_client.get_document(department, file_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if document.get("is_locked"):
+        raise HTTPException(
+            status_code=403,
+            detail="This file is locked. Unlock it with its password.",
+        )
+
+    content_type = preview_content_type(document["display_name"])
+    if content_type is None:
+        raise HTTPException(
+            status_code=400, detail="Preview is not available for this file type"
+        )
+
+    try:
+        url = s3_client.generate_view_url(document["s3_key"], content_type)
+    except ClientError as e:
+        logger.error(
+            "S3 presign failed for %s: %s", document["s3_key"], e, exc_info=True
+        )
+        raise HTTPException(status_code=503, detail="Failed to generate preview link")
+
+    background.add_task(_audit, department, "view", employee, file_id, document["display_name"])
+
+    return {
+        "file_id": file_id,
+        "filename": document["display_name"],
+        "content_type": content_type,
+        "url": url,
+    }
 
 
 @router.get("/download/{file_id}")

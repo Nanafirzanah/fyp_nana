@@ -10,6 +10,7 @@ import type {
   MoveResponse,
   UploadResponse,
   UnlockResponse,
+  ViewResponse,
 } from "../types";
 import { getApiBaseUrl, authHeaders, handleResponse } from "./utils";
 import type { EncryptedFile } from "../crypto/lockCrypto";
@@ -102,6 +103,18 @@ export async function getDownloadUrl(
     },
   );
   return handleResponse<DownloadResponse>(response);
+}
+
+// VIEW (inline preview of an unlocked file)
+
+export async function getViewUrl(
+  idToken: string,
+  fileId: string,
+): Promise<ViewResponse> {
+  const response = await fetch(`${getApiBaseUrl()}/documents/view/${fileId}`, {
+    headers: authHeaders(idToken),
+  });
+  return handleResponse<ViewResponse>(response);
 }
 
 // RENAME

@@ -57,6 +57,23 @@ def generate_download_url(s3_key: str, filename: str, expires_in: int = 300) -> 
     )
 
 
+def generate_view_url(s3_key: str, content_type: str, expires_in: int = 300) -> str:
+    """
+    Presigned GET URL that the browser shows inline (a preview) instead of saving.
+    content_type overrides the stored one so the browser renders it correctly.
+    """
+    return _s3.generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": S3_BUCKET_NAME,
+            "Key": s3_key,
+            "ResponseContentDisposition": "inline",
+            "ResponseContentType": content_type,
+        },
+        ExpiresIn=expires_in,
+    )
+
+
 def download_file_by_key(s3_key: str) -> bytes:
     """
     Download a file's raw bytes from S3 by its key.
