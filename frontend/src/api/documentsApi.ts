@@ -10,6 +10,7 @@ import type {
   MoveResponse,
   UploadResponse,
   UnlockResponse,
+  LockResponse,
   ViewResponse,
 } from "../types";
 import { getApiBaseUrl, authHeaders, handleResponse } from "./utils";
@@ -172,6 +173,38 @@ export async function moveItems(
     }),
   });
   return handleResponse<MoveResponse>(response);
+}
+
+// LOCK AN EXISTING FILE
+
+/**
+ * Replace an unprotected file with its encrypted version. Only the uploader may
+ * do this. The password never leaves the browser; only the ciphertext, the
+ * verifier and the public key-derivation parameters are sent.
+ */
+export async function lockDocument(
+  idToken: string,
+  fileId: string,
+  fileName: string,
+  encrypted: EncryptedFile,
+): Promise<LockResponse> {
+  const formData = new FormData();
+  formData.append(
+    "file",
+    new Blob([encrypted.ciphertext], { type: "application/octet-stream" }),
+    fileName,
+  );
+  formData.append("verifier", encrypted.verifier);
+  formData.append("kdf_salt", encrypted.params.salt);
+  formData.append("kdf_iterations", String(encrypted.params.iterations));
+  formData.append("iv", encrypted.params.iv);
+
+  const response = await fetch(`${getApiBaseUrl()}/documents/${fileId}/lock`, {
+    method: "POST",
+    headers: authHeaders(idToken),
+    body: formData,
+  });
+  return handleResponse<LockResponse>(response);
 }
 
 // UNLOCK

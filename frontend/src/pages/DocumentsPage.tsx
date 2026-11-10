@@ -19,6 +19,7 @@ import {
   deleteDocument,
   getDownloadUrl,
   getViewUrl,
+  lockDocument,
 } from "../api/documentsApi";
 import {
   listFolders,
@@ -32,9 +33,11 @@ import RenameModal from "../components/documents/RenameModal";
 import UploadOptionsModal from "../components/documents/UploadOptionsModal";
 import UnlockModal from "../components/documents/UnlockModal";
 import PreviewModal from "../components/documents/PreviewModal";
+import LockFileModal from "../components/documents/LockFileModal";
 import {
   createEncryptionContext,
   encryptWithContext,
+  MAX_LOCKED_FILE_BYTES,
   type EncryptionContext,
 } from "../crypto/lockCrypto";
 import { unlockAndDecrypt } from "../crypto/unlockFile";
@@ -90,6 +93,7 @@ export default function DocumentsPage({
     null,
   );
   const [unlockTarget, setUnlockTarget] = useState<Document | null>(null);
+  const [lockTarget, setLockTarget] = useState<Document | null>(null);
   const [unlockPurpose, setUnlockPurpose] = useState<"download" | "view">(
     "download",
   );
@@ -570,6 +574,52 @@ export default function DocumentsPage({
     }
   }
 
+  // LOCK AN EXISTING FILE
+
+  function handleLockRequest(doc: Document) {
+    if (doc.file_size > MAX_LOCKED_FILE_BYTES) {
+      toast.error(
+        `Files over ${MAX_LOCKED_FILE_BYTES / (1024 * 1024)}MB cannot be locked.`,
+      );
+      return;
+    }
+    setLockTarget(doc);
+  }
+
+  // Download the unprotected file, encrypt it here, and send the encrypted copy.
+  // Errors are thrown so the dialog can show them.
+  async function handleLockConfirm(password: string) {
+    if (!lockTarget) return;
+    const doc = lockTarget;
+    const { url } = await getDownloadUrl(idToken, doc.file_id);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Could not read the file. Try again.");
+    const plaintext = new Uint8Array(await response.arrayBuffer());
+
+    const context = await createEncryptionContext(password);
+    const encrypted = await encryptWithContext(context, plaintext);
+    const result = await lockDocument(
+      idToken,
+      doc.file_id,
+      doc.display_name,
+      encrypted,
+    );
+
+    setLockTarget(null);
+    await loadData();
+    toast.success("File encrypted and locked", { description: doc.display_name });
+    if (!result.old_object_deleted) {
+      toast.warning(
+        "The file is locked, but the old unprotected copy could not be removed. Tell an administrator.",
+        { duration: 12000 },
+      );
+    }
+    setSuccessDialog({
+      message: "File successfully locked.",
+      detail: doc.display_name,
+    });
+  }
+
   // VIEW
 
   function closePreview() {
@@ -820,6 +870,8 @@ export default function DocumentsPage({
                 }
                 onFileDownload={handleDownload}
                 onFileView={handleView}
+                onFileLock={handleLockRequest}
+                currentUserEmail={profile.email}
                 onFileRename={(file) =>
                   setRenameTarget({ type: "file", item: file })
                 }
@@ -854,6 +906,15 @@ export default function DocumentsPage({
           message={successDialog.message}
           detail={successDialog.detail}
           onClose={() => setSuccessDialog(null)}
+        />
+      )}
+
+      {/* Lock an existing file */}
+      {lockTarget && (
+        <LockFileModal
+          document={lockTarget}
+          onConfirm={handleLockConfirm}
+          onClose={() => setLockTarget(null)}
         />
       )}
 

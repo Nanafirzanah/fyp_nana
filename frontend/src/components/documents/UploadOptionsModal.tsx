@@ -9,10 +9,6 @@
 import { useState } from "react";
 import {
   UploadCloud,
-  ShieldCheck,
-  AlertTriangle,
-  Eye,
-  EyeOff,
   FileText,
   FileSpreadsheet,
   FileImage,
@@ -21,6 +17,7 @@ import {
   Folder as FolderIcon,
 } from "lucide-react";
 import { MAX_LOCKED_FILE_BYTES } from "../../crypto/lockCrypto";
+import SecurityOptions from "./SecurityOptions";
 import {
   displayPath,
   getExtension,
@@ -34,8 +31,6 @@ interface UploadOptionsModalProps {
   onConfirm: (password: string | null) => void;
   onClose: () => void;
 }
-
-const MIN_PASSWORD_LENGTH = 8;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -106,10 +101,6 @@ export default function UploadOptionsModal({
 }: UploadOptionsModalProps) {
   const [step, setStep] = useState<"options" | "security">("options");
   const [lockEnabled, setLockEnabled] = useState(false);
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [acknowledged, setAcknowledged] = useState(false);
 
   const topFolder = singleTopFolder(items);
   const totalBytes = items.reduce((sum, i) => sum + i.file.size, 0);
@@ -124,26 +115,12 @@ export default function UploadOptionsModal({
           .join(", ")}`
       : null;
 
-  let passwordProblem: string | null = null;
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    passwordProblem = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
-  } else if (password !== confirmPassword) {
-    passwordProblem = "Passwords do not match";
-  } else if (!acknowledged) {
-    passwordProblem = "Please confirm you understand the password cannot be recovered";
-  }
-
   function handleUpload() {
     if (!lockEnabled) {
       onConfirm(null);
     } else if (!tooLargeProblem) {
       setStep("security");
     }
-  }
-
-  function handleDone() {
-    if (passwordProblem) return;
-    onConfirm(password);
   }
 
   return (
@@ -231,105 +208,10 @@ export default function UploadOptionsModal({
             </button>
           </>
         ) : (
-          <>
-            <h2
-              id="upload-options-title"
-              className="flex items-center gap-2 text-base font-semibold text-slate-900 mb-4"
-            >
-              <ShieldCheck size={18} aria-hidden="true" />
-              Security Options
-            </h2>
-
-            <label
-              htmlFor="lock-password"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Lock Password
-            </label>
-            <div className="relative mb-3">
-              <input
-                id="lock-password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                autoFocus
-                className="w-full text-sm px-3 py-2.5 pr-10 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-
-            <label
-              htmlFor="lock-password-confirm"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Confirm Password
-            </label>
-            <input
-              id="lock-password-confirm"
-              type={showPassword ? "text" : "password"}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleDone()}
-              autoComplete="new-password"
-              className="w-full text-sm px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-            <p className="mt-1 mb-3 text-xs text-slate-500">
-              File will be protected with this password.
-            </p>
-
-            <div className="flex gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs leading-relaxed">
-              <AlertTriangle
-                size={16}
-                className="flex-shrink-0 mt-0.5"
-                aria-hidden="true"
-              />
-              <p>
-                The file is encrypted in your browser and the password is never
-                sent to the server.{" "}
-                <strong>
-                  If you forget the password, the file cannot be recovered
-                </strong>{" "}
-                - not by you, and not by an administrator.
-              </p>
-            </div>
-            <label className="mt-3 flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={acknowledged}
-                onChange={(e) => setAcknowledged(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-300"
-              />
-              I understand the password cannot be recovered
-            </label>
-
-            {passwordProblem && (password || confirmPassword) && (
-              <p className="mt-3 text-xs text-red-600" role="alert">
-                {passwordProblem}
-              </p>
-            )}
-
-            <button
-              onClick={handleDone}
-              disabled={passwordProblem !== null}
-              className="mt-5 w-full rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Done
-            </button>
-            <button
-              onClick={() => setStep("options")}
-              className="mt-2 w-full rounded-lg px-4 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100"
-            >
-              Back
-            </button>
-          </>
+          <SecurityOptions
+            onDone={(password) => onConfirm(password)}
+            onBack={() => setStep("options")}
+          />
         )}
       </div>
     </div>

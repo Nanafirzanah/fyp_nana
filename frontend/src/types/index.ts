@@ -78,6 +78,14 @@ export interface ViewResponse {
   url: string;
 }
 
+export interface LockResponse {
+  file_id: string;
+  s3_key: string;
+  is_locked: boolean;
+  /** false if the old unprotected copy could not be deleted. */
+  old_object_deleted: boolean;
+}
+
 export interface DownloadResponse {
   file_id: string;
   filename: string;

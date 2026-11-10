@@ -229,6 +229,39 @@ def rename_document(
     )
 
 
+def lock_existing_document(
+    department: str,
+    file_id: str,
+    new_s3_key: str,
+    lock_kdf: dict,
+    modified_by: str,
+) -> None:
+    """
+    Mark an unlocked document as locked and point it at its new (encrypted) S3 object.
+    Conditional: raises ClientError "ConditionalCheckFailedException" if the
+    document is already locked or no longer exists, so two locks cannot race.
+    """
+    _documents_table.update_item(
+        Key={"department": department, "file_id": file_id},
+        UpdateExpression=(
+            "SET s3_key = :key, is_locked = :true, lock_kdf = :kdf, "
+            "last_modified_by = :mb, last_modified_at = :ma"
+        ),
+        ConditionExpression=(
+            "attribute_exists(file_id) AND "
+            "(attribute_not_exists(is_locked) OR is_locked = :false)"
+        ),
+        ExpressionAttributeValues={
+            ":key": new_s3_key,
+            ":true": True,
+            ":false": False,
+            ":kdf": lock_kdf,
+            ":mb": modified_by,
+            ":ma": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
 def move_document(department: str, file_id: str, folder_id: str | None) -> None:
     """
     Move a document to new folder or root.

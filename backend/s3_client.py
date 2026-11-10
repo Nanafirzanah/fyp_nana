@@ -57,6 +57,11 @@ def generate_download_url(s3_key: str, filename: str, expires_in: int = 300) -> 
     )
 
 
+def get_object_size(s3_key: str) -> int:
+    """Size in bytes of a stored object (HEAD request, nothing is downloaded)."""
+    return _s3.head_object(Bucket=S3_BUCKET_NAME, Key=s3_key)["ContentLength"]
+
+
 def generate_view_url(s3_key: str, content_type: str, expires_in: int = 300) -> str:
     """
     Presigned GET URL that the browser shows inline (a preview) instead of saving.

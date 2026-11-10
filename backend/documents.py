@@ -301,6 +301,151 @@ async def upload_locked_document(
     return document
 
 
+@router.post("/{file_id}/lock")
+async def lock_existing_document(
+    file_id: str,
+    background: BackgroundTasks,
+    file: UploadFile = File(...),
+    verifier: str = Form(...),
+    kdf_salt: str = Form(...),
+    kdf_iterations: int = Form(...),
+    iv: str = Form(...),
+    employee: dict = Depends(get_current_employee),
+):
+    """
+    Lock a file that was uploaded without a password. Only the person who
+    uploaded it may do this.
+
+    The browser downloads the plaintext, encrypts it (AES-256-GCM) and sends the
+    ciphertext here with the verifier. Order: new S3 object, FilePasswords, then
+    the Documents record switches to the new object (conditional, so it cannot
+    race), and only then is the old plaintext object deleted. The key is never
+    overwritten in place, so a failure cannot leave a half-encrypted file.
+    """
+    department = employee["department"]
+    if not department:
+        raise HTTPException(status_code=403, detail="No dept assigned to this acc.")
+
+    document = await asyncio.to_thread(dynamodb_client.get_document, department, file_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if document.get("is_locked"):
+        raise HTTPException(status_code=409, detail="This file is already locked")
+    if document.get("uploaded_by") != employee["email"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the person who uploaded this file can lock it",
+        )
+
+    _decode_b64(verifier, 32, "verifier")
+    _decode_b64(kdf_salt, 16, "salt")
+    _decode_b64(iv, 12, "iv")
+    if not MIN_KDF_ITERATIONS <= kdf_iterations <= MAX_KDF_ITERATIONS:
+        raise HTTPException(status_code=400, detail="Invalid key derivation settings")
+
+    old_key = document["s3_key"]
+    try:
+        stored_size = await asyncio.to_thread(s3_client.get_object_size, old_key)
+    except ClientError as e:
+        logger.error("S3 head failed for %s: %s", old_key, e, exc_info=True)
+        raise HTTPException(status_code=503, detail="Failed to read the stored file")
+    if stored_size > MAX_LOCKED_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Files over {MAX_LOCKED_FILE_BYTES // (1024 * 1024)}MB cannot be locked.",
+        )
+
+    cipher = bytearray()
+    while chunk := await file.read(1024 * 1024):
+        cipher.extend(chunk)
+        if len(cipher) > MAX_LOCKED_FILE_BYTES + GCM_TAG_BYTES:
+            raise HTTPException(status_code=413, detail="Encrypted file is too large")
+    cipher = bytes(cipher)
+    if len(cipher) != stored_size + GCM_TAG_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail="The encrypted file does not match the stored file",
+        )
+
+    new_key = f"{department}/{uuid.uuid4()}"
+    hash_task = asyncio.create_task(asyncio.to_thread(_hash_verifier, verifier))
+    try:
+        await asyncio.to_thread(
+            s3_client.upload_file_by_key,
+            io.BytesIO(cipher),
+            new_key,
+            "application/octet-stream",
+        )
+    except ClientError as e:
+        logger.error("S3 upload failed for %s: %s", new_key, e, exc_info=True)
+        raise HTTPException(status_code=503, detail="Failed to upload file to storage")
+    verifier_hash = await hash_task
+
+    def rollback(password_saved: bool) -> None:
+        if password_saved:
+            try:
+                dynamodb_client.delete_file_password(department, file_id)
+            except ClientError:
+                logger.error("Rollback failed - orphaned file password %s", file_id)
+        try:
+            s3_client.delete_file_by_key(new_key)
+        except ClientError:
+            logger.error("S3 rollback failed - orphaned key %s", new_key)
+
+    try:
+        await asyncio.to_thread(
+            dynamodb_client.create_file_password,
+            department,
+            file_id,
+            verifier_hash,
+            iv,
+            employee["email"],
+        )
+    except ClientError as e:
+        logger.error("DynamoDB file password failed for %s: %s", file_id, e, exc_info=True)
+        rollback(password_saved=False)
+        raise HTTPException(status_code=503, detail="Failed to lock the file")
+
+    try:
+        await asyncio.to_thread(
+            dynamodb_client.lock_existing_document,
+            department,
+            file_id,
+            new_key,
+            {
+                "version": 1,
+                "kdf": "PBKDF2-SHA256",
+                "iterations": kdf_iterations,
+                "salt": kdf_salt,
+            },
+            employee["email"],
+        )
+    except ClientError as e:
+        rollback(password_saved=True)
+        if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise HTTPException(status_code=409, detail="This file is already locked")
+        logger.error("DynamoDB lock failed for %s: %s", file_id, e, exc_info=True)
+        raise HTTPException(status_code=503, detail="Failed to lock the file")
+
+    # The file is now locked. Remove the old plaintext object; if that fails it is
+    # reported so the owner knows a plaintext copy may remain.
+    old_object_deleted = True
+    try:
+        await asyncio.to_thread(s3_client.delete_file_by_key, old_key)
+    except ClientError as e:
+        old_object_deleted = False
+        logger.error("Old plaintext object %s was not deleted: %s", old_key, e, exc_info=True)
+
+    background.add_task(_audit, department, "lock", employee, file_id, document["display_name"])
+
+    return {
+        "file_id": file_id,
+        "s3_key": new_key,
+        "is_locked": True,
+        "old_object_deleted": old_object_deleted,
+    }
+
+
 @router.get("/list")
 def list_documents(
     folder_id: str | None = Query(default=None),

@@ -12,6 +12,9 @@ interface ContentListProps {
   onFolderDelete: (folder: Folder) => void;
   onFileDownload: (document: Document) => void;
   onFileView?: (document: Document) => void;
+  onFileLock?: (document: Document) => void;
+  /** Email of the signed-in user: only they can lock the files they uploaded. */
+  currentUserEmail?: string;
   onFileRename: (document: Document) => void;
   onFileDelete: (document: Document) => void;
   onFileOpen?: (document: Document) => void;
@@ -32,6 +35,8 @@ export default function ContentList({
   onFolderDelete,
   onFileDownload,
   onFileView,
+  onFileLock,
+  currentUserEmail,
   onFileRename,
   onFileDelete,
   onFileOpen,
@@ -94,6 +99,9 @@ export default function ContentList({
           document={file}
           onDownload={onFileDownload}
           onView={onFileView}
+          onLock={
+            file.uploaded_by === currentUserEmail ? onFileLock : undefined
+          }
           onRename={onFileRename}
           onDelete={onFileDelete}
           onOpen={onFileOpen}

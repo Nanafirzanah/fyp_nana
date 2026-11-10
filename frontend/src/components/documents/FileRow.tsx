@@ -10,6 +10,7 @@ import {
   Move,
   Lock,
   Eye,
+  ShieldPlus,
 } from "lucide-react";
 import type { Document } from "../../types";
 import ContextMenu, {
@@ -23,6 +24,8 @@ interface FileRowProps {
   document: Document;
   onDownload: (document: Document) => void;
   onView?: (document: Document) => void;
+  /** Given only when the signed-in user may lock this file. */
+  onLock?: (document: Document) => void;
   onRename: (document: Document) => void;
   onDelete: (document: Document) => void;
   onMove: (document: Document) => void;
@@ -124,6 +127,7 @@ export default function FileRow({
   document,
   onDownload,
   onView,
+  onLock,
   onRename,
   onDelete,
   onMove,
@@ -143,6 +147,15 @@ export default function FileRow({
             label: "View",
             icon: <Eye size={14} />,
             onClick: () => onView(document),
+          },
+        ]
+      : []),
+    ...(onLock && !document.is_locked
+      ? [
+          {
+            label: "Lock file",
+            icon: <ShieldPlus size={14} />,
+            onClick: () => onLock(document),
           },
         ]
       : []),
